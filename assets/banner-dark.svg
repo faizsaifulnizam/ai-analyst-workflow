@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1280" height="320" viewBox="0 0 1280 320" role="img" aria-label="ai-analyst-workflow — can an LLM write correct SQL for a real analyst question, and how would I know when to trust it: 27 of 32 verified answers reproduced first try, 5 failed, retries rescued none, traps caught 3 of 6">
   <rect width="1280" height="320" fill="#14293D"/>
-  <title>ai-analyst-workflow — a seven-repo series on Singapore's public data</title>
+  <title>ai-analyst-workflow — Six-on-SG data analyses + this AI workflow (seven repos)</title>
   <text x="72" y="118" font-family="Georgia, 'Source Serif 4', serif" font-size="58" fill="#E7E3DC">ai-analyst-workflow</text>
   <rect x="72" y="146" width="430" height="4" fill="#45A08B"/>
   <text x="72" y="196" font-family="Inter, 'Helvetica Neue', Arial, sans-serif" font-size="20" fill="#A9B6C1">Can an LLM write correct SQL for a real analyst question —</text>
@@ -19,5 +19,5 @@
   <rect x="800" y="262" width="200" height="16" fill="#45A08B"/>
   <rect x="1000" y="262" width="200" height="16" fill="#D97E4F"/>
   <text x="800" y="298" font-family="Inter, Helvetica, Arial, sans-serif" font-size="13" fill="#A9B6C1">3 avoided · 3 caught the model</text>
-  <text x="1208" y="314" text-anchor="end" font-family="Inter, 'Helvetica Neue', Arial, sans-serif" font-size="16" fill="#45A08B">A seven-repo series on Singapore's public data · 7 of 7</text>
+  <text x="1208" y="314" text-anchor="end" font-family="Inter, 'Helvetica Neue', Arial, sans-serif" font-size="16" fill="#45A08B">Six-on-SG: six data analyses + this AI workflow · 7 of 7</text>
 </svg>

@@ -4,15 +4,13 @@
   <img src="assets/banner.svg" width="100%" alt="ai-analyst-workflow — can an LLM write correct SQL for a real analyst question: 27 of 32 verified answers reproduced first try, 5 failed, retries rescued none, deliberate traps caught 3 of 6">
 </picture>
 
-[A full-size version of this banner](assets/banner.svg)
-
 # ai-analyst-workflow
 
 [![CI](https://github.com/faizsaifulnizam/ai-analyst-workflow/actions/workflows/ci.yml/badge.svg)](https://github.com/faizsaifulnizam/ai-analyst-workflow/actions/workflows/ci.yml) [![license: MIT](https://img.shields.io/badge/license-MIT-2E7D6B.svg)](LICENSE) ![Python 3.12](https://img.shields.io/badge/Python-3.12-C0552B.svg) ![DuckDB](https://img.shields.io/badge/analytics-DuckDB-22607B.svg) [![data: data.gov.sg](https://img.shields.io/badge/data-data.gov.sg-14293D.svg)](https://data.gov.sg/datasets/d_8b84c4ee58e3cfc0ece0d773c8ca6abc/view) ![LLM eval: dated receipt](https://img.shields.io/badge/LLM%20eval-dated%20receipt-2E7D6B.svg)
 
 > **Answer:** On 2026-10-04 a free-tier LLM wrote SQL for 32 hand-written analyst questions and **27 passed on the first try** — but the honest picture is the other end: **all 5 failures were value-level wrong answers that looked right** (correct row counts, wrong values), **retries rescued none of them**, and **half the deliberate traps caught the model** (3 of 6), including a `COUNT(DISTINCT block)` on a non-unique column and a row-frame window over a gapped calendar. I would trust this workflow to *catch* those mistakes — every one was caught by the result fingerprint, not by reading the SQL — and I would not run the model's SQL unverified anywhere.
 
-**Status:** built 2026-10-04. The numbers below are the as-of receipt of **one dated run** (three free-tier Gemini model ids, pinned and explained in [docs/model_note.md](docs/model_note.md) — the free tier caps each model at 20 requests/day). Part of a seven-repo series on Singapore's public data.
+**Status:** built 2026-10-04. The numbers below are the as-of receipt of **one dated run** (three free-tier Gemini model ids, pinned and explained in [docs/model_note.md](docs/model_note.md) — the free tier caps each model at 20 requests/day). Part of the Six-on-SG series — six Singapore-data analyses plus this AI workflow (seven repos).
 
 ## Key numbers (all reproducible)
 
@@ -149,6 +147,6 @@ Code: MIT. Data: Singapore Open Data Licence — © Housing & Development Board,
 
 ---
 
-*Part of a seven-repo series on Singapore's public data:* **[hdb-resale-mart](https://github.com/faizsaifulnizam/hdb-resale-mart)** · **[card-book-quality](https://github.com/faizsaifulnizam/card-book-quality)** · **[coe-quota-premium](https://github.com/faizsaifulnizam/coe-quota-premium)** · **[retail-sales-split](https://github.com/faizsaifulnizam/retail-sales-split)** · **[coe-category-break](https://github.com/faizsaifulnizam/coe-category-break)** · **[hdb-lease-slope](https://github.com/faizsaifulnizam/hdb-lease-slope)** · **ai-analyst-workflow**
+*Six-on-SG: six Singapore-data analyses, plus this AI workflow — seven repos:* **[hdb-resale-mart](https://github.com/faizsaifulnizam/hdb-resale-mart)** · **[card-book-quality](https://github.com/faizsaifulnizam/card-book-quality)** · **[coe-quota-premium](https://github.com/faizsaifulnizam/coe-quota-premium)** · **[retail-sales-split](https://github.com/faizsaifulnizam/retail-sales-split)** · **[coe-category-break](https://github.com/faizsaifulnizam/coe-category-break)** · **[hdb-lease-slope](https://github.com/faizsaifulnizam/hdb-lease-slope)** · **ai-analyst-workflow**
 
 *If you found this useful, a star helps others find it.*
