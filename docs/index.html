@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ai-analyst-workflow — can an LLM write correct SQL for a real analyst question?</title>
+<meta name="description" content="27/32 first try · 0 after one retry · 5 fail — all value_mismatch. A free-tier LLM wrote SQL for 32 hand-written analyst questions on 241,920 rows of HDB resale data; every wrong answer was caught by the result fingerprint, not by reading the SQL.">
+<meta property="og:title" content="ai-analyst-workflow — 27/32 first try, 5 confident wrong answers">
+<meta property="og:description" content="27/32 first try · 0 after one retry · 5 fail — all value_mismatch (row counts right on all 32). Deliberate traps caught the model 3 of 6; clean question classes 18/18; 15 verdicts re-derived independently, 0 discrepancies.">
+<meta property="og:type" content="website">
+<meta property="og:image" content="https://faizsaifulnizam.github.io/ai-analyst-workflow/img/social-card.png">
+<meta property="og:image:width" content="1280">
+<meta property="og:image:height" content="640">
+<meta name="twitter:card" content="summary_large_image">
+<style>
+:root{--bg:#FBFBF9;--fg:#14293D;--muted:#5C6B79;--accent:#2E7D6B;--rule:#E7E3DC;--fig-bg:#FBFBF9}
+@media (prefers-color-scheme: dark){:root{--bg:#101E2B;--fg:#EAE6DF;--muted:#9AA9B6;--accent:#8FD0BE;--rule:#2A3B4A;--fig-bg:#0C1824}}
+@font-face{font-family:'Inter';src:url('fonts/Inter-Regular.ttf');font-weight:400}
+@font-face{font-family:'Inter';src:url('fonts/Inter-SemiBold.ttf');font-weight:600}
+@font-face{font-family:'Source Serif 4';src:url('fonts/SourceSerif4-Regular.ttf');font-weight:400}
+@font-face{font-family:'Source Serif 4';src:url('fonts/SourceSerif4-Bold.ttf');font-weight:700}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:Inter,-apple-system,Segoe UI,Arial,sans-serif;line-height:1.6;font-size:16.5px}
+.wrap{max-width:880px;margin:0 auto;padding:36px 22px 56px}
+.series{color:var(--accent);font-size:14.5px;letter-spacing:.02em;margin:0 0 14px}
+.banner img{width:100%;height:auto;display:block;border:1px solid var(--rule);border-radius:10px}
+.lead{font-family:'Source Serif 4',Georgia,serif;font-size:22px;line-height:1.5;margin:34px 0 8px}
+.lead b{font-weight:700}
+.stats{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:26px 0}
+.stat{border:1px solid var(--rule);border-radius:10px;padding:14px 16px}
+.stat .n{font-family:'Source Serif 4',Georgia,serif;font-size:29px;line-height:1.15}
+.stat .l{color:var(--muted);font-size:14px;margin-top:6px}
+h2{font-family:'Source Serif 4',Georgia,serif;font-size:26px;font-weight:700;margin:52px 0 12px}
+p{margin:12px 0}
+a{color:var(--accent)}
+.fig{margin:26px 0}
+.fig img{width:100%;height:auto;display:block;border:1px solid var(--rule);border-radius:10px}
+.fig figcaption,.cap{color:var(--muted);font-size:14px;margin-top:8px}
+.note{border:1px solid var(--rule);border-radius:10px;padding:14px 16px;font-size:14.5px;color:var(--muted)}
+ol.method{margin:14px 0;padding-left:22px}
+ol.method li{margin:10px 0}
+pre{background:transparent;border:1px solid var(--rule);border-radius:10px;padding:14px 16px;overflow-x:auto;font-size:13px;line-height:1.55}
+code{font-family:ui-monospace,Consolas,Menlo,monospace;font-size:.92em}
+footer{border-top:1px solid var(--rule);margin-top:60px;padding-top:18px;color:var(--muted);font-size:13.5px}
+@media (max-width:760px){.stats{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<p class="series">HDB resale flat prices via data.gov.sg · 241,920 rows, 2017-01 → 2026-10 · Six-on-SG · 7 of 7</p>
+
+<div class="banner">
+<picture>
+<source media="(prefers-color-scheme: dark)" srcset="img/banner-dark.svg">
+<img src="img/banner.svg" alt="ai-analyst-workflow — can an LLM write correct SQL for a real analyst question: 27 of 32 verified answers reproduced first try, 5 failed, retries rescued none, deliberate traps caught 3 of 6">
+</picture>
+</div>
+
+<p class="lead"><b>27/32 first try · 0 after one retry · 5 fail — all value_mismatch.</b> On 2026-10-04 a free-tier LLM wrote SQL for 32 hand-written analyst questions. The part worth reading is the failures: all 5 were value-level wrong answers that looked right (correct row counts, wrong values), retries rescued none of them, and half the deliberate traps caught the model. Every wrong answer was caught by the result fingerprint (a hash of the actual rows returned), not by reading the SQL. In one line: I would trust it as a <b>checker</b> for single-table analyst SQL — not the model's SQL unverified, and not these numbers for multi-table work or model ranking.</p>
+
+<div class="stats">
+  <div class="stat"><div class="n">27/32 · 0 · 5</div><div class="l">first try · after one retry · fail — every failure is <code>value_mismatch</code>, row counts right on all 32; no <code>sql_error</code>, no <code>guardrail_reject</code>, no <code>timeout</code>. The retry saw the failed SQL plus an error class, never the expected numbers</div></div>
+  <div class="stat"><div class="n">3 of 6 traps</div><div class="l">deliberate traps caught the model — Q13 grouped on non-unique <code>block</code> (196 instead of 295), Q15 <code>ROWS 2 PRECEDING</code> over a series with 14 missing months, Q24 the ambiguous "last year"; the other three traps were answered right first try</div></div>
+  <div class="stat"><div class="n">18/18 clean</div><div class="l">clean question classes all passed — filter 4/4, aggregation 5/5, ratio 4/4, distinct 2/2, date 3/3; where it breaks: window 2/5, ambiguous 0/1, grouping 7/8</div></div>
+  <div class="stat"><div class="n">32/32 · 0 discrepancies</div><div class="l">golden fingerprints reproduce from the DuckDB build (241,920 rows, 9/9 checks); 15 verdicts (14 passes + 1 failure) re-derived from the raw CSV with stdlib <code>Decimal</code> — no DuckDB, no repo code</div></div>
+</div>
+
+<div class="fig">
+<picture>
+<source media="(prefers-color-scheme: dark)" srcset="img/f2_pass_rate-dark.png">
+<img src="img/f2_pass_rate.png" alt="Bar chart of pass rate by question type: filter 4 of 4, aggregation 5 of 5, ratio 4 of 4, grouping 7 of 8, window 2 of 5, distinct 2 of 2, date 3 of 3, ambiguous 0 of 1; trap questions passed 3 of 6 versus 24 of 26 for everything else">
+</picture>
+<figcaption>Pass rate by question type (left) and deliberate traps versus everything else (right). A pass is a byte-exact result fingerprint, not a human review. As-of run 2026-10-04.</figcaption>
+</div>
+
+<h2>The failure view</h2>
+<div class="fig">
+<picture>
+<source media="(prefers-color-scheme: dark)" srcset="img/f3_failures-dark.png">
+<img src="img/f3_failures.png" alt="Failure-type breakdown: 5 value_mismatch, 0 wrong_row_count, 0 sql_error, 0 guardrail_reject, 0 timeout; verdict mix 27 first try, 0 after retry, 5 fail">
+</picture>
+<figcaption>Every failure in this run is a value-level mismatch: the model returned the right number of rows and the wrong values. Nothing failed on syntax or on the safety guardrails. The taxonomy is the contract even where a class is empty — a future run that starts producing <code>guardrail_reject</code>s means the prompt or schema changed. Full write-up in the <a href="https://github.com/faizsaifulnizam/ai-analyst-workflow/blob/main/docs/failure_catalogue.md">failure catalogue</a>.</figcaption>
+</div>
+
+<h2>What this cannot say</h2>
+<ul>
+<li><b>Not a benchmark, not a model ranking.</b> 32 questions on one table from one prompt template is a validation demo; the as-of run spans three closely related free-tier model ids because of a daily quota wall (<a href="https://github.com/faizsaifulnizam/ai-analyst-workflow/blob/main/docs/model_note.md">model note</a>). Treat the aggregate as a workflow receipt, not a model measurement.</li>
+<li><b>Not a claim that 27/32 is "good".</b> The set is small and hand-written; the five failures are concentrated exactly where unverified SQL is most dangerous (windows, ambiguity). A different 32 questions would give a different number — the number is dated, the failure classes are the durable part.</li>
+<li><b>Not proof the guardrails are sufficient.</b> They reject the obvious escapes and are tested for those; the row cap and watchdog bound damage, they do not eliminate it.</li>
+<li><b>Not a statement about multi-table work.</b> One table on purpose: joins, schema evolution, dialect portability and explanation quality are unmeasured.</li>
+<li><b>Not causal or predictive.</b> The underlying data is transaction records; nothing here prices, forecasts or attributes anything.</li>
+</ul>
+<div class="note"><b>Limits.</b> The golden set's readings of deliberately ambiguous questions are pinned choices, not ground truth (Q24's mismatch is partly the question's fault, labelled as such). Two failures are contract slips the questions could have prevented (rounding order in Q14; year label type in Q17) — recorded as failures because the contract is the contract. Generation is a receipt of 2026-10-04: re-runs will differ; only the deterministic half (DB build, fingerprints, validation of the committed candidates) is byte-reproducible.</div>
+
+<h2>Method</h2>
+<ol class="method">
+<li><b>Golden set</b> — 32 hand-written questions in analyst phrasing across 8 question types, including 6 deliberate traps (a question whose obvious SQL is subtly wrong); canonical SQL with a deterministic <code>ORDER BY</code> where the result has multiple rows, plus a result fingerprint. <a href="https://github.com/faizsaifulnizam/ai-analyst-workflow/blob/main/eval/golden_set.yaml">eval/golden_set.yaml</a></li>
+<li><b>Fingerprint</b> — one canonical result formatter shared by the golden set and the comparison: every cell to 2 dp, rows joined in order, sha256 over the ordered result. Row count + hash, nothing else. <a href="https://github.com/faizsaifulnizam/ai-analyst-workflow/blob/main/src/fingerprint.py">src/fingerprint.py</a></li>
+<li><b>Generate</b> — one prompt template = question text + schema block, no rows; ≤2 attempts per question, attempt 2 sees attempt 1's SQL and an error class, never expected numbers. Re-runs land in <code>outputs/reruns/&lt;date&gt;/</code> and never overwrite the committed receipt. <a href="https://github.com/faizsaifulnizam/ai-analyst-workflow/blob/main/src/generate.py">src/generate.py</a></li>
+<li><b>Guardrails</b> — every candidate executes under a trust boundary: parse-based single-SELECT check, table allowlist, no filesystem/catalog functions, read-only connection, 15 s watchdog, 10,000-row cap. <a href="https://github.com/faizsaifulnizam/ai-analyst-workflow/blob/main/src/guardrails.py">src/guardrails.py</a></li>
+<li><b>Validate + catalogue + audit</b> — golden fingerprints re-derived from the live database first (a moved input fails loudly), then every committed candidate replayed; every failure classified with a next-iteration fix; 15 verdicts (14 passes + 1 failure) re-derived by hand from the raw CSV. <a href="https://github.com/faizsaifulnizam/ai-analyst-workflow/blob/main/src/validate.py">src/validate.py</a> · <a href="https://github.com/faizsaifulnizam/ai-analyst-workflow/blob/main/docs/audit.md">audit</a></li>
+</ol>
+
+<h2>Reproduce</h2>
+<pre><code>git clone https://github.com/faizsaifulnizam/ai-analyst-workflow &amp;&amp; cd ai-analyst-workflow
+uv venv .venv --python 3.12 &amp;&amp; source .venv/bin/activate
+uv pip install -r requirements.txt
+
+python src/download.py      # raw CSV → data/raw/ (gitignored)
+python src/build_db.py      # 241,920 rows → local DuckDB
+python src/generate.py      # needs GOOGLE_API_KEY; skips gracefully without it
+python src/validate.py      # replays the committed candidates
+python src/figures.py
+python tests/smoke_test.py</code></pre>
+<p class="cap">Spot-check: <code>outputs/results.csv</code> must show Q01 <code>pass_first_try</code> (Tampines 2023 count <b>1,634</b>), Q05 <code>pass_first_try</code> (2023 4-room median <b>S$550,000</b>), and Q13 <code>fail</code> / <code>value_mismatch</code>. If those three rows read differently, you are not looking at the committed receipt. Full commands (incl. Windows) in the <a href="https://github.com/faizsaifulnizam/ai-analyst-workflow/blob/main/README.md">README</a>.</p>
+
+<h2>Read more</h2>
+<ul>
+<li><a href="https://github.com/faizsaifulnizam/ai-analyst-workflow">The repository</a> — the README carries the full method, rules-and-why table, validation receipts and caveats</li>
+<li><a href="https://github.com/faizsaifulnizam/ai-analyst-workflow/blob/main/docs/failure_catalogue.md">Failure catalogue</a> — every failure classified, with a concrete example and a next-iteration fix</li>
+<li><a href="https://github.com/faizsaifulnizam/ai-analyst-workflow/blob/main/docs/audit.md">Independent audit</a> · <a href="https://github.com/faizsaifulnizam/ai-analyst-workflow/blob/main/docs/data_audit.md">Data audit</a> · <a href="https://github.com/faizsaifulnizam/ai-analyst-workflow/blob/main/docs/decision_memo.md">Decision memo</a></li>
+<li><a href="https://github.com/faizsaifulnizam/ai-analyst-workflow/blob/main/docs/model_note.md">Model note</a> — the dated LLM receipt and the free-tier quota wall · <a href="https://github.com/faizsaifulnizam/ai-analyst-workflow/blob/main/docs/never_leaves_machine.md">What never leaves the machine</a></li>
+</ul>
+<p class="cap">Data: HDB resale flat prices, Jan 2017 → Oct 2026 (<a href="https://data.gov.sg/datasets/d_8b84c4ee58e3cfc0ece0d773c8ca6abc/view">data.gov.sg <code>d_8b84c4ee58e3cfc0ece0d773c8ca6abc</code></a>, © Housing &amp; Development Board, Singapore Open Data Licence). Pulled 2026-10-04 (16:28:47 +08:00): 241,920 rows, 23,928,760 bytes, 2017-01 → 2026-10, sha256 <code>9835dfe6…db9a</code> (committed <code>pull_manifest.json</code>). The LLM generation receipt is dated 2026-10-04 (three free-tier Gemini model ids, per-question model recorded).</p>
+
+<footer>
+<p><em>Six-on-SG: six Singapore-data analyses, plus this AI workflow — seven repos:</em> <a href="https://github.com/faizsaifulnizam/hdb-resale-mart"><strong>hdb-resale-mart</strong></a> · <a href="https://github.com/faizsaifulnizam/card-book-quality"><strong>card-book-quality</strong></a> · <a href="https://github.com/faizsaifulnizam/coe-quota-premium"><strong>coe-quota-premium</strong></a> · <a href="https://github.com/faizsaifulnizam/retail-sales-split"><strong>retail-sales-split</strong></a> · <a href="https://github.com/faizsaifulnizam/coe-category-break"><strong>coe-category-break</strong></a> · <a href="https://github.com/faizsaifulnizam/hdb-lease-slope"><strong>hdb-lease-slope</strong></a> · <strong>ai-analyst-workflow</strong></p>
+<p>An independent, unofficial analysis by <a href="https://github.com/faizsaifulnizam">Muhammad Faiz Saifulnizam</a>. Code: MIT. LLM evaluation receipt dated 2026-10-04 — not a benchmark, not a model ranking.</p>
+</footer>
+
+</div>
+</body>
+</html>
