@@ -4,14 +4,14 @@ Run:  python src/generate.py                 (writes outputs/reruns/<today>/cand
       python src/generate.py --out <dir>     (explicit output directory)
 
 Providers (free tier only):
-  --provider groq   (default)  https://api.groq.com/openai/v1 (OpenAI-compatible), key GROQ_API_KEY
-  --provider gemini            https://generativelanguage.googleapis.com/v1beta, key GOOGLE_API_KEY
+  --provider gemini (default)  https://generativelanguage.googleapis.com/v1beta, key GOOGLE_API_KEY
+  --provider groq              https://api.groq.com/openai/v1 (OpenAI-compatible), key GROQ_API_KEY
 
-Gemini exists because api.groq.com refused this build machine's VPN egress AND
-GitHub-hosted runners (HTTP 403 "Access denied. Please check your network
-settings.") — receipts in docs/model_note.md. The pipeline, prompt, guardrails
-and comparison are provider-independent; Groq remains the default for anyone
-with normal network access.
+Gemini is the default because api.groq.com refused this build machine's VPN
+egress AND GitHub-hosted runners (HTTP 403 "Access denied. Please check your
+network settings.") — receipts in docs/model_note.md. The pipeline, prompt,
+guardrails and comparison are provider-independent; groq stays selectable for
+anyone with normal network access.
 
 Without the provider's API key in the environment this prints how to re-run and
 exits 0 — the committed candidates are re-validated offline by src/validate.py,
@@ -52,6 +52,7 @@ from src.fingerprint import fingerprint, load_golden  # noqa: E402
 
 PROMPT_TEMPLATE = (ROOT / "prompts/sql_prompt.md").read_text(encoding="utf-8")
 TEMPERATURE = 0
+PACE_S = 4   # seconds between provider calls (free-tier burst/TPM pacing)
 SGT = timezone(timedelta(hours=8))
 
 PROVIDERS = {
@@ -65,14 +66,18 @@ PROVIDERS = {
         "base": "https://generativelanguage.googleapis.com/v1beta",
         "key_env": "GOOGLE_API_KEY",
         "max_tokens": 2048,
-        "preferred": None,  # chosen by the runtime rule in pick_model()
+        # pinned id of the committed receipt (docs/model_note.md); used only if
+        # listed at run time, else the newest stable flash the rule accepts
+        "preferred": "gemini-3.7-flash",
     },
 }
 
 
-def http_json(url, payload=None, headers=None, timeout=120, attempts=4):
-    """POST/GET JSON with exponential backoff on transient provider errors
-    (429/5xx). Anything else raises immediately — a bad request is not retryable."""
+def http_json(url, payload=None, headers=None, timeout=120, attempts=6):
+    """POST/GET JSON with bounded backoff on transient provider errors
+    (429/5xx — including Gemini's 503 'high demand'). Honours Retry-After when
+    the provider sends one, else 20s * 2^i capped at 120s. Anything else raises
+    immediately — a bad request is not retryable."""
     last = None
     for i in range(attempts):
         req = u.Request(url, method="POST" if payload is not None else "GET", headers=headers or {})
@@ -85,6 +90,12 @@ def http_json(url, payload=None, headers=None, timeout=120, attempts=4):
             if exc.code not in (429, 500, 502, 503, 504) or i == attempts - 1:
                 raise
             last = exc
+            try:
+                ra = float(exc.headers.get("Retry-After", ""))
+            except ValueError:
+                ra = 0
+            time.sleep(min(ra or 20 * (2 ** i), 120))
+            continue
         time.sleep(2 ** i * 2)
     raise last
 
@@ -144,13 +155,14 @@ def ask(provider, api_key, model, question, feedback=None, prior_sql=None):
     resp = http_json(f"{PROVIDERS['gemini']['base']}/models/{model}:generateContent", body,
                      headers={"x-goog-api-key": api_key, "Content-Type": "application/json"})
     parts = resp["candidates"][0]["content"]["parts"]
+    time.sleep(PACE_S)   # pace free-tier calls; the burst/TPM limit trips without it
     return extract_sql("".join(p.get("text", "") for p in parts))
 
 
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--out", default=None, help="output directory (default outputs/reruns/<today>)")
-    ap.add_argument("--provider", default="groq", choices=sorted(PROVIDERS))
+    ap.add_argument("--provider", default="gemini", choices=sorted(PROVIDERS))
     ap.add_argument("--model", default=None, help="override the model id (recorded as-is)")
     args = ap.parse_args()
 
@@ -217,7 +229,12 @@ def main():
         if q["id"] in done:
             continue
         attempts = []
-        sql = ask(args.provider, api_key, model, q["question"])
+        try:
+            sql = ask(args.provider, api_key, model, q["question"])
+        except Exception as exc:  # noqa: BLE001 — progress is saved; resume wins over crash
+            print(f"provider error on {q['id']}: {exc}")
+            print(f"progress saved in {out_path} — re-run the same command to resume.")
+            return 2
         res = execute_sql(sql)
         ok = passes(q["id"], res)
         fp = fingerprint(res["rows"]) if res["outcome"] == "ok" else None
@@ -229,12 +246,17 @@ def main():
                       "(check column order, grouping keys and the exact filters)")
             else:
                 fb = f"{res['outcome']}: {res.get('note', '')}"
-            sql2 = ask(args.provider, api_key, model, q["question"], feedback=fb, prior_sql=sql)
+            try:
+                sql2 = ask(args.provider, api_key, model, q["question"], feedback=fb, prior_sql=sql)
+            except Exception as exc:  # noqa: BLE001 — attempt 1 is already saved
+                print(f"provider error on {q['id']} attempt 2: {exc}")
+                print(f"progress saved in {out_path} — re-run the same command to resume.")
+                return 2
             res2 = execute_sql(sql2)
             fp2 = fingerprint(res2["rows"]) if res2["outcome"] == "ok" else None
             attempts.append({"n": 2, "sql": sql2, "outcome": res2["outcome"],
                              "note": res2.get("note", ""), "fingerprint": fp2})
-        records.append({"id": q["id"], "question": q["question"], "attempts": attempts})
+        records.append({"id": q["id"], "question": q["question"], "model": model, "attempts": attempts})
         with out_path.open("a", encoding="utf-8", newline="\n") as f:   # incremental: a crash keeps progress
             f.write(json.dumps(records[-1]) + "\n")
         print(f"  [{i:2d}/{len(golden['questions'])}] {q['id']}  attempt1={attempts[0]['outcome']}"
