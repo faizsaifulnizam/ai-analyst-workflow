@@ -244,13 +244,14 @@ def build_f2(summary):
     ax.set_title("By question type", fontsize=10, color=T["muted"])
     ax.legend(loc="best", fontsize=8)
 
-    # panel B — trap vs non-trap pass rate
+    # panel B — trap vs non-trap pass rate. Violet marks the deliberate traps
+    # (style-guide fourth series); burnt is reserved for "failed" figure-wide.
     ax = axs[1]
     labels = [f"deliberate traps\n({by_trap['true']['n']} questions)",
               f"everything else\n({by_trap['false']['n']} questions)"]
     keys = ["true", "false"]
     rates = [by_trap[k]["passed"] / by_trap[k]["n"] * 100 for k in keys]
-    bars = ax.bar(range(2), rates, color=[T["burnt"], T["petrol"]],
+    bars = ax.bar(range(2), rates, color=[T["violet"], T["petrol"]],
                   edgecolor=T["edge"], width=0.55)
     for i, k in enumerate(keys):
         ax.annotate(f"{by_trap[k]['passed']}/{by_trap[k]['n']} = {rates[i]:.0f}%",
