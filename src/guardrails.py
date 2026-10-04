@@ -71,13 +71,14 @@ def check_sql(sql):
         return False, f"top level is {type(stmt).__name__}, not a SELECT"
 
     # CTE names may be referenced as tables; everything else must be `resale`.
-    cte_names = {c.alias_or_name for c in stmt.find_all(exp.CTE)}
+    # DuckDB identifiers are case-insensitive, so fold case before comparing.
+    cte_names = {(c.alias_or_name or "").lower() for c in stmt.find_all(exp.CTE)}
     for node in stmt.find_all(*FORBIDDEN_TYPES):
         return False, f"blocked statement type: {type(node).__name__}"
     for node in stmt.find_all(exp.Table):
-        name = node.name
+        name = node.name.lower()
         if name != ALLOWED_TABLE and name not in cte_names:
-            return False, f"table {name!r} is not allowed (only {ALLOWED_TABLE!r} or a CTE)"
+            return False, f"table {node.name!r} is not allowed (only {ALLOWED_TABLE!r} or a CTE)"
     for node in stmt.find_all(exp.Func):
         fn = (node.name or "").lower()
         if fn in FORBIDDEN_FUNCS or fn.startswith("read_") or fn.endswith("_scan") or fn.startswith("pragma_"):
@@ -126,4 +127,15 @@ if __name__ == "__main__":
     ok, why = check_sql("SELECT count(*) FROM resale")
     assert ok, why
     print("  accepted: 'SELECT count(*) FROM resale'")
+    # identifiers are case-insensitive in DuckDB (issue #2): valid SQL must not
+    # be misclassified as guardrail_reject, and non-allowlisted tables still must.
+    for sql in ["SELECT count(*) FROM RESALE", "SELECT count(*) FROM Resale",
+                "SELECT count(*) FROM \"RESALE\"",
+                "WITH x AS (SELECT 1 AS a) SELECT * FROM X"]:
+        ok, why = check_sql(sql)
+        assert ok, f"false reject: {sql!r} -> {why}"
+        print(f"  accepted: {sql!r}")
+    ok, why = check_sql("SELECT count(*) FROM EVIL")
+    assert not ok, "guardrail missed: FROM EVIL"
+    print(f"  rejected: 'SELECT count(*) FROM EVIL' -> {why}")
     print("guardrail self-check PASS")
