@@ -4,7 +4,7 @@
 
 A small, verifiable LLM-assisted analytics workflow over Singapore public data: generate candidate SQL → execute it against a real DuckDB database → compare against a hand-written golden set → catalogue every failure. Built to show **validation discipline**, not model magic.
 
-**Status:** scaffolded 2026-10-02 — build pending (~3–5 focused hours; spec in the project folder).
+**Status:** built 2026-10-04 to the generation boundary — data pipeline, DuckDB build (241,920 rows, 9/9 checks), the hand-written golden set (32 questions, 6 deliberate traps, verified fingerprints), parse-based execution guardrails and the generate/validate code are complete and pushed. **The LLM eval receipt is not produced yet:** the pinned free-tier provider (Groq) refuses every executable egress from the build machine and from GitHub-hosted runners (HTTP 403) — no substitute provider was used and no results are claimed. See [docs/model_note.md](docs/model_note.md) for the pinned configuration and the blocking receipts, and [docs/never_leaves_machine.md](docs/never_leaves_machine.md) for what would (and would not) leave the machine.
 
 ## The question
 
