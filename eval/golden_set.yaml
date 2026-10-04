@@ -1,0 +1,551 @@
+version: 1
+dataset: d_8b84c4ee58e3cfc0ece0d773c8ca6abc
+snapshot_pull: '2026-10-04'
+serializer: src/fingerprint.py (numbers at 2dp; rows joined 0x1e/0x1f; sha256)
+questions:
+- id: Q01
+  type: filter
+  trap: false
+  question: How many resale transactions were registered in Tampines in 2023?
+  why: baseline point lookup — a clean pass here is the floor, not a win.
+  sql: 'SELECT count(*) AS n
+
+    FROM resale
+
+    WHERE town = ''TAMPINES'' AND month BETWEEN ''2023-01'' AND ''2023-12''
+
+    '
+  fingerprint:
+    rows: 1
+    sha256: 125c1f49db57cabff183dace1ef8e8b509941d3fb9b4cce86c489eb996dd4c96
+- id: Q02
+  type: filter
+  trap: false
+  question: How many 5-room flats were sold in Bedok between January and June 2024 inclusive?
+  why: month is 'YYYY-MM' text — date-window handling without date functions.
+  sql: 'SELECT count(*) AS n
+
+    FROM resale
+
+    WHERE town = ''BEDOK'' AND flat_type = ''5 ROOM'' AND month BETWEEN ''2024-01'' AND ''2024-06''
+
+    '
+  fingerprint:
+    rows: 1
+    sha256: 20fd6820930b80dc97a8236841a87690675368404df0038da556d650484e4ee6
+- id: Q03
+  type: filter
+  trap: false
+  question: How many transactions in 2023 were for flats with a floor area of at least 110 square metres
+    whose storey range starts at the 13th storey or higher?
+  why: two numeric conditions on raw vs parsed columns (floor_area_sqm, storey_low).
+  sql: "SELECT count(*) AS n\nFROM resale\nWHERE month BETWEEN '2023-01' AND '2023-12'\n  AND floor_area_sqm\
+    \ >= 110\n  AND storey_low >= 13\n"
+  fingerprint:
+    rows: 1
+    sha256: 2d1a29d45dca2032742b3b612a85bd66a7fa95a9525bfa2176050e8ba5b55f94
+- id: Q04
+  type: filter
+  trap: true
+  question: How many 2-room flats were sold in 2023?
+  why: near-miss columns — flat_model has a '2-room' value (35 rows in 2023) that is NOT the flat type
+    (688 rows).
+  sql: 'SELECT count(*) AS n
+
+    FROM resale
+
+    WHERE flat_type = ''2 ROOM'' AND month BETWEEN ''2023-01'' AND ''2023-12''
+
+    '
+  fingerprint:
+    rows: 1
+    sha256: eb3bb117fdb3dff3683d000e8874e85b55b59020fa4a31b181ab6f29d9aee885
+- id: Q05
+  type: aggregation
+  trap: false
+  question: What was the median resale price of 4-room flats island-wide in 2023, in whole dollars?
+  why: median (not mean) on a skewed price distribution.
+  sql: 'SELECT ROUND(median(resale_price), 0) AS median_price
+
+    FROM resale
+
+    WHERE flat_type = ''4 ROOM'' AND month BETWEEN ''2023-01'' AND ''2023-12''
+
+    '
+  fingerprint:
+    rows: 1
+    sha256: 560a18993900022f28abce84e2103d5b2f26ab3007ca716d331b9e4d7284dbb5
+- id: Q06
+  type: aggregation
+  trap: false
+  question: What was the average floor area, in square metres (1 decimal place), of executive flats sold
+    in 2023?
+  why: mean with explicit rounding — rounding convention is part of the contract.
+  sql: 'SELECT ROUND(AVG(floor_area_sqm), 1) AS avg_area_sqm
+
+    FROM resale
+
+    WHERE flat_type = ''EXECUTIVE'' AND month BETWEEN ''2023-01'' AND ''2023-12''
+
+    '
+  fingerprint:
+    rows: 1
+    sha256: dc29842ac3e73767f0c074917c1a20604fbfc01a4fd3b25be5ef5ccd4d5c8785
+- id: Q07
+  type: ratio
+  trap: false
+  question: What percent of all 2023 resale transactions were 4-room flats? Give the percentage to 2 decimal
+    places.
+  why: share of a filtered count over the full-year count — denominator discipline.
+  sql: 'SELECT ROUND(100.0 * count(*) FILTER (WHERE flat_type = ''4 ROOM'') / count(*), 2) AS pct_4room
+
+    FROM resale
+
+    WHERE month BETWEEN ''2023-01'' AND ''2023-12''
+
+    '
+  fingerprint:
+    rows: 1
+    sha256: 5adff50c522f79b1d9d25ffecd0700098b960e85d9023402fcb1e60f99a2e583
+- id: Q08
+  type: grouping
+  trap: false
+  question: How many transactions were registered per flat type in 2023? Order by transaction count descending,
+    breaking ties by flat type name ascending.
+  why: plain group-by with a fully specified deterministic order.
+  sql: 'SELECT flat_type, count(*) AS n
+
+    FROM resale
+
+    WHERE month BETWEEN ''2023-01'' AND ''2023-12''
+
+    GROUP BY flat_type
+
+    ORDER BY n DESC, flat_type ASC
+
+    '
+  fingerprint:
+    rows: 7
+    sha256: 5ae67a844d17bedff042f4c60274fa79ba59c11a262ed1656f3cc66868dadbef
+- id: Q09
+  type: grouping
+  trap: false
+  question: Which town had the highest median price per square metre in 2023, and what was that value
+    (2 decimal places)? Return the town and the value. If towns tie, use the town whose name comes first
+    alphabetically.
+  why: top-1 with an explicit tie-break — LIMIT 1 without one is non-deterministic.
+  sql: 'SELECT town, ROUND(median(price_per_sqm), 2) AS median_ppsm
+
+    FROM resale
+
+    WHERE month BETWEEN ''2023-01'' AND ''2023-12''
+
+    GROUP BY town
+
+    ORDER BY median_ppsm DESC, town ASC
+
+    LIMIT 1
+
+    '
+  fingerprint:
+    rows: 1
+    sha256: 9bf6e9bf3edacdda9af5604bb053e41f5b30104c1c43de050b3f82bb311a9a9c
+- id: Q10
+  type: grouping
+  trap: false
+  question: For each town, how many transactions were registered in 2023? Return town and count, ordered
+    by town name.
+  why: full group listing — tests complete enumeration (26 towns), not just the top.
+  sql: 'SELECT town, count(*) AS n
+
+    FROM resale
+
+    WHERE month BETWEEN ''2023-01'' AND ''2023-12''
+
+    GROUP BY town
+
+    ORDER BY town ASC
+
+    '
+  fingerprint:
+    rows: 26
+    sha256: 6bca1d585e1df389b5a8f2130916a47a4e9e3dbb7f95f1bfd5e051cf54754421
+- id: Q11
+  type: grouping
+  trap: false
+  question: Which five towns had the highest average resale price for 4-room flats in 2023? Return town
+    and average price (2 decimal places), highest first; break ties by town name.
+  why: ORDER BY on an aggregate alias + LIMIT 5 with tie-break.
+  sql: 'SELECT town, ROUND(AVG(resale_price), 2) AS avg_price
+
+    FROM resale
+
+    WHERE flat_type = ''4 ROOM'' AND month BETWEEN ''2023-01'' AND ''2023-12''
+
+    GROUP BY town
+
+    ORDER BY avg_price DESC, town ASC
+
+    LIMIT 5
+
+    '
+  fingerprint:
+    rows: 5
+    sha256: 965f580619434f89479bbfa89d2ac898028f29a18035fca9a0c4f29283671e27
+- id: Q12
+  type: grouping
+  trap: true
+  question: 'Which block saw the most resale transactions in 2023? Return the block''s town, street name
+    and block number, and the transaction count. Ties: the town name first alphabetically, then street
+    name, then block number.'
+  why: grouping-by-non-unique-column trap — block numbers repeat across towns and streets (2,785 distinct
+    block strings vs 9,755 physical blocks); GROUP BY block alone is subtly wrong.
+  sql: 'SELECT town, street_name, block, count(*) AS n
+
+    FROM resale
+
+    WHERE month BETWEEN ''2023-01'' AND ''2023-12''
+
+    GROUP BY town, street_name, block
+
+    ORDER BY n DESC, town ASC, street_name ASC, block ASC
+
+    LIMIT 1
+
+    '
+  fingerprint:
+    rows: 1
+    sha256: d69ee58c5191baf17e0cf0d35c8476af2a57cf81349c04bf865144f779ee2d8d
+- id: Q13
+  type: grouping
+  trap: true
+  question: How many distinct blocks were transacted in Bukit Merah in 2023?
+  why: same trap as Q12 — count(DISTINCT block) gives 196, the physical-block answer is 295 (block '28'
+    alone sits on five different Bukit Merah streets).
+  sql: 'SELECT count(DISTINCT street_name || ''|'' || block) AS n
+
+    FROM resale
+
+    WHERE town = ''BUKIT MERAH'' AND month BETWEEN ''2023-01'' AND ''2023-12''
+
+    '
+  fingerprint:
+    rows: 1
+    sha256: 228e8d3387279ad59af72f461fa08df07e9359c4be1ee3e258a1a7465f26f755
+- id: Q14
+  type: window
+  trap: false
+  question: For each month of 2023, what was the island-wide median price per square metre (2 decimal
+    places) and how much did it change from the previous month (2 decimal places)? Return month, median
+    and change, ordered by month. The first month has no previous month — leave its change empty.
+  why: LAG over a monthly aggregate, with an explicit NULL contract for the first row.
+  sql: "WITH m AS (\n  SELECT month, median(price_per_sqm) AS med_ppsm\n  FROM resale\n  WHERE month BETWEEN\
+    \ '2023-01' AND '2023-12'\n  GROUP BY month\n)\nSELECT month,\n       ROUND(med_ppsm, 2) AS med_ppsm,\n\
+    \       ROUND(med_ppsm - LAG(med_ppsm) OVER (ORDER BY month), 2) AS change_from_prev\nFROM m\nORDER\
+    \ BY month ASC\n"
+  fingerprint:
+    rows: 12
+    sha256: 0aed0e86d2f1794135b50964c630e52ab29b68dd19c317b283e11c377bfc8e90
+- id: Q15
+  type: window
+  trap: true
+  question: For Hougang 2-room flats, what was the 3-month rolling median of the monthly median price
+    per square metre across 2022 to 2024? Each month's value covers that month and the two calendar months
+    before it. Return month and rolling median (2 decimal places), ordered by month.
+  why: calendar-aware window trap — Hougang 2-room trades in only 22 of 36 months; ROWS 2 PRECEDING reads
+    across gaps and differs from the calendar window in 5 months.
+  sql: "WITH m AS (\n  SELECT month, sale_month, median(price_per_sqm) AS med_ppsm\n  FROM resale\n  WHERE\
+    \ town = 'HOUGANG' AND flat_type = '2 ROOM' AND month BETWEEN '2022-01' AND '2024-12'\n  GROUP BY\
+    \ month, sale_month\n)\nSELECT month,\n       ROUND(median(med_ppsm) OVER (ORDER BY sale_month RANGE\
+    \ BETWEEN INTERVAL 2 MONTH PRECEDING AND CURRENT ROW), 2) AS rolling_3m_median_ppsm\nFROM m\nORDER\
+    \ BY month ASC\n"
+  fingerprint:
+    rows: 22
+    sha256: 12ebce27c25f658722ba8eb26fe961f76b1e59172e6f999c055b6bfd2f969fae
+- id: Q16
+  type: window
+  trap: false
+  question: Within each town, which month of 2023 had the most registered transactions? Return town, month
+    and count. If two months tie, use the earlier month. Order by town name.
+  why: per-group arg-max with a documented tie-break (row_number vs max+join).
+  sql: "SELECT town, month, n\nFROM (\n  SELECT town, month, count(*) AS n,\n         row_number() OVER\
+    \ (PARTITION BY town ORDER BY count(*) DESC, month ASC) AS rk\n  FROM resale\n  WHERE month BETWEEN\
+    \ '2023-01' AND '2023-12'\n  GROUP BY town, month\n)\nWHERE rk = 1\nORDER BY town ASC\n"
+  fingerprint:
+    rows: 26
+    sha256: 22acc7e86ebcc1e31c0cc549b0011215cfc4e2dd5f9227b4d71b06d68ce613f8
+- id: Q17
+  type: window
+  trap: false
+  question: For each complete year from 2017 to 2025, what was the island-wide median price per square
+    metre (2 decimal places) and its change from the previous year (2 decimal places)? Return year, median
+    and change, ordered by year. The first year's change is empty.
+  why: LAG over yearly aggregates; 2026 excluded as an incomplete year.
+  sql: "WITH y AS (\n  SELECT strftime(sale_month, '%Y') AS yr, median(price_per_sqm) AS med_ppsm\n  FROM\
+    \ resale\n  WHERE month BETWEEN '2017-01' AND '2025-12'\n  GROUP BY yr\n)\nSELECT yr,\n       ROUND(med_ppsm,\
+    \ 2) AS med_ppsm,\n       ROUND(med_ppsm - LAG(med_ppsm) OVER (ORDER BY yr), 2) AS change_from_prev_year\n\
+    FROM y\nORDER BY yr ASC\n"
+  fingerprint:
+    rows: 9
+    sha256: 537d491eaef26ea061049465cd615ddafae5922b6a763ce8ae4261ec8b9c2eb0
+- id: Q18
+  type: ratio
+  trap: false
+  question: For each town, what is that town's 2023 median price per square metre divided by the island-wide
+    2023 median (2 decimal places)? Return town and ratio, ordered by town name.
+  why: per-group aggregate against a scalar subquery — the island median must not be recomputed per town.
+  sql: "SELECT t.town,\n       ROUND(median(t.price_per_sqm) / m.med_all, 2) AS ratio_to_island_median\n\
+    FROM resale t\nCROSS JOIN (SELECT median(price_per_sqm) AS med_all\n            FROM resale WHERE\
+    \ month BETWEEN '2023-01' AND '2023-12') m\nWHERE t.month BETWEEN '2023-01' AND '2023-12'\nGROUP BY\
+    \ t.town, m.med_all\nORDER BY t.town ASC\n"
+  fingerprint:
+    rows: 26
+    sha256: 59d2f15e1cb91e39bd18607f01dd9b13570b26e0b982a313b4456fec73661131
+- id: Q19
+  type: aggregation
+  trap: false
+  question: What was the average price per square metre (2 decimal places) of flats sold in 2023 that
+    had at least 80 years of remaining lease?
+  why: derived-metric filter (remaining_lease_years, parsed from lease text).
+  sql: 'SELECT ROUND(AVG(price_per_sqm), 2) AS avg_ppsm
+
+    FROM resale
+
+    WHERE month BETWEEN ''2023-01'' AND ''2023-12'' AND remaining_lease_years >= 80
+
+    '
+  fingerprint:
+    rows: 1
+    sha256: e378795af5cd51a6bada0dabf941e6100861c16b6d8db12ed6baa904e284032e
+- id: Q20
+  type: distinct
+  trap: false
+  question: How many distinct flat models appeared among Tampines transactions in 2023?
+  why: DISTINCT count on a categorical column (flat_model != flat_type).
+  sql: 'SELECT count(DISTINCT flat_model) AS n
+
+    FROM resale
+
+    WHERE town = ''TAMPINES'' AND month BETWEEN ''2023-01'' AND ''2023-12''
+
+    '
+  fingerprint:
+    rows: 1
+    sha256: 4cc019de7a747650855142af31a90fa652d0e00ee24e804acf171b4c82d675e9
+- id: Q21
+  type: distinct
+  trap: false
+  question: Which towns had at least one registered transaction in every month of 2023? Return the towns
+    ordered by name.
+  why: completeness set — group + HAVING over 12 distinct months.
+  sql: 'SELECT town
+
+    FROM resale
+
+    WHERE month BETWEEN ''2023-01'' AND ''2023-12''
+
+    GROUP BY town
+
+    HAVING count(DISTINCT month) = 12
+
+    ORDER BY town ASC
+
+    '
+  fingerprint:
+    rows: 26
+    sha256: afc589f758555beff3989dda0ce0ab819910fb6959582cccda8e3d6bab4abcb4
+- id: Q22
+  type: date
+  trap: false
+  question: Which registration month in 2020 had the most resale transactions? Return the month and the
+    count. If months tie, use the earliest month.
+  why: arg-max over months with a documented tie-break.
+  sql: 'SELECT month, count(*) AS n
+
+    FROM resale
+
+    WHERE month BETWEEN ''2020-01'' AND ''2020-12''
+
+    GROUP BY month
+
+    ORDER BY n DESC, month ASC
+
+    LIMIT 1
+
+    '
+  fingerprint:
+    rows: 1
+    sha256: ca3a359884c8b32023a45b841d5c41e3e7c05bbced0b6cc9ee5667ea5b1d55e3
+- id: Q23
+  type: ratio
+  trap: false
+  question: By how much did the island-wide median price per square metre change from 2022 to 2023? Give
+    the change in S$ per square metre (2 decimal places).
+  why: difference of two period medians — sign convention (later minus earlier).
+  sql: 'SELECT ROUND(m23.med - m22.med, 2) AS change_ppsm
+
+    FROM (SELECT median(price_per_sqm) AS med FROM resale WHERE month BETWEEN ''2023-01'' AND ''2023-12'')
+    m23
+
+    CROSS JOIN (SELECT median(price_per_sqm) AS med FROM resale WHERE month BETWEEN ''2022-01'' AND ''2022-12'')
+    m22
+
+    '
+  fingerprint:
+    rows: 1
+    sha256: 806539b9f6fb57330aaafb5188ebe97b552d49cdb24f75523eb0e1d7e62dd846
+- id: Q24
+  type: ambiguous
+  trap: true
+  question: How much have HDB resale prices gone up in the last year?
+  why: deliberately ambiguous phrasing (mean or median? last calendar year or trailing 12 months?); the
+    golden pins median resale price, 2025 vs 2024 — a mismatch here may be the question's fault, and the
+    failure catalogue says so.
+  sql: 'SELECT ROUND(m25.med - m24.med, 2) AS change_price
+
+    FROM (SELECT median(resale_price) AS med FROM resale WHERE month BETWEEN ''2025-01'' AND ''2025-12'')
+    m25
+
+    CROSS JOIN (SELECT median(resale_price) AS med FROM resale WHERE month BETWEEN ''2024-01'' AND ''2024-12'')
+    m24
+
+    '
+  fingerprint:
+    rows: 1
+    sha256: 84ee70730fb951fa64f3a3c2fc050f43c956637fa3ba206365945c1f902ead26
+- id: Q25
+  type: grouping
+  trap: false
+  question: What was the average resale price (2 decimal places) of flats in block 27 that sold in 2023?
+  why: read literally — the question names no town or street, so every row with block number '27' counts
+    (block numbers repeat); tests unrequested narrowing vs a per-block unweighted average.
+  sql: 'SELECT ROUND(AVG(resale_price), 2) AS avg_price
+
+    FROM resale
+
+    WHERE block = ''27'' AND month BETWEEN ''2023-01'' AND ''2023-12''
+
+    '
+  fingerprint:
+    rows: 1
+    sha256: fe8afa8af1fe07d0ec9bc849a0a5c9504aa32fb1ef8ebdf62911878b016c30dd
+- id: Q26
+  type: aggregation
+  trap: true
+  question: What was the average remaining lease, in years (1 decimal place), of 4-room flats sold in
+    2019?
+  why: near-miss parse trap — remaining_lease is text ('61 years 04 months'); ignoring the months part
+    gives 77.4 instead of 77.9.
+  sql: 'SELECT ROUND(AVG(remaining_lease_years), 1) AS avg_lease_years
+
+    FROM resale
+
+    WHERE flat_type = ''4 ROOM'' AND month BETWEEN ''2019-01'' AND ''2019-12''
+
+    '
+  fingerprint:
+    rows: 1
+    sha256: e6f50e48ee680c738bbf9fb3e59d47a149aa5e190a7862cc9ad4352bc480e98d
+- id: Q27
+  type: aggregation
+  trap: false
+  question: In 2023, how many months had more registered transactions than that year's average month?
+    Return the count.
+  why: aggregate compared against an aggregate of aggregates — nested subquery discipline.
+  sql: "SELECT count(*) AS n\nFROM (\n  SELECT month, count(*) AS n\n  FROM resale\n  WHERE month BETWEEN\
+    \ '2023-01' AND '2023-12'\n  GROUP BY month\n) m\nWHERE m.n > (\n  SELECT avg(n) FROM (\n    SELECT\
+    \ month, count(*) AS n\n    FROM resale\n    WHERE month BETWEEN '2023-01' AND '2023-12'\n    GROUP\
+    \ BY month\n  ) x\n)\n"
+  fingerprint:
+    rows: 1
+    sha256: 017144e2271f67b4919e1a42755e016675581a9f7113845d1ab227b18a77bbe1
+- id: Q28
+  type: date
+  trap: false
+  question: What was the highest resale price registered in 2023, and in which month? Return the month
+    and the price. If several months tie, use the earliest month.
+  why: extreme + tie-break; also fixes column order (month, then price).
+  sql: 'SELECT month, resale_price
+
+    FROM resale
+
+    WHERE month BETWEEN ''2023-01'' AND ''2023-12''
+
+    ORDER BY resale_price DESC, month ASC
+
+    LIMIT 1
+
+    '
+  fingerprint:
+    rows: 1
+    sha256: ff1269dd15f861bb20f0d6a22eba93f07409dc2ccac50fe33783d553aaf324e5
+- id: Q29
+  type: grouping
+  trap: false
+  question: Which flat types had a 2023 median price per square metre above S$6,000? Return flat type
+    and median (2 decimal places), ordered by flat type name.
+  why: HAVING on an aggregate, not a WHERE — per-group filtering.
+  sql: 'SELECT flat_type, ROUND(median(price_per_sqm), 2) AS median_ppsm
+
+    FROM resale
+
+    WHERE month BETWEEN ''2023-01'' AND ''2023-12''
+
+    GROUP BY flat_type
+
+    HAVING median(price_per_sqm) > 6000
+
+    ORDER BY flat_type ASC
+
+    '
+  fingerprint:
+    rows: 2
+    sha256: bb74ff34b6c2640a4ec4fd5d9b2fb360dd266adcb9055a8dc0257a06f15a50ea
+- id: Q30
+  type: ratio
+  trap: false
+  question: Of all 2023 transactions in Queenstown, what percent were priced above the island-wide 2023
+    median resale price? Give the percentage to 2 decimal places.
+  why: row-level comparison against a scalar subquery — the island median is computed once, not per town.
+  sql: 'SELECT ROUND(100.0 * count(*) FILTER (WHERE resale_price > m.med_all) / count(*), 2) AS pct_above
+
+    FROM resale
+
+    CROSS JOIN (SELECT median(resale_price) AS med_all FROM resale WHERE month BETWEEN ''2023-01'' AND
+    ''2023-12'') m
+
+    WHERE town = ''QUEENSTOWN'' AND month BETWEEN ''2023-01'' AND ''2023-12''
+
+    '
+  fingerprint:
+    rows: 1
+    sha256: 68b1a7b5354b1901c6d2017ddacdf66053ad80f5ee3ab3d55fd3633b361e2ae4
+- id: Q31
+  type: window
+  trap: false
+  question: For Toa Payoh 3-room flats, what is the cumulative transaction count by registration month
+    across 2023? Return month and cumulative count, ordered by month.
+  why: running total over monthly counts — cumulative sums are unaffected by gaps (unlike Q15's rolling
+    median).
+  sql: "WITH m AS (\n  SELECT month, count(*) AS n\n  FROM resale\n  WHERE town = 'TOA PAYOH' AND flat_type\
+    \ = '3 ROOM' AND month BETWEEN '2023-01' AND '2023-12'\n  GROUP BY month\n)\nSELECT month,\n     \
+    \  sum(n) OVER (ORDER BY month ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS cumulative_n\n\
+    FROM m\nORDER BY month ASC\n"
+  fingerprint:
+    rows: 12
+    sha256: c5b1b4259a10003452acfe834ac74a51d548f25b9e4d53b8538e8c2f0f5dfe63
+- id: Q32
+  type: date
+  trap: false
+  question: How many transactions were registered in the first quarter of 2023 (January to March)?
+  why: calendar quarter parsing on 'YYYY-MM' text — the cheap cousin of the window traps.
+  sql: 'SELECT count(*) AS n
+
+    FROM resale
+
+    WHERE month BETWEEN ''2023-01'' AND ''2023-03''
+
+    '
+  fingerprint:
+    rows: 1
+    sha256: a74653f023c138bb39ce803f445286d6485225b9fb668eb79d4a61924f5fd6fa
