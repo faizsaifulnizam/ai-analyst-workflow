@@ -1,0 +1,9 @@
+# Regenerated artifacts must compare byte-for-byte across machines
+*.csv text eol=lf
+*.json text eol=lf
+*.yaml text eol=lf
+*.md text eol=lf
+*.py text eol=lf
+*.sql text eol=lf
+*.png binary
+*.ttf binary

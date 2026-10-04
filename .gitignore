@@ -1,8 +1,9 @@
-# ---- data and models (raw is never committed) ----
+# ---- data and models (raw is never committed; the pull manifest IS the receipt) ----
 data/raw/*
 data/interim/*
 data/processed/*
 !data/raw/README.md
+!data/raw/pull_manifest.json
 !**/.gitkeep
 models/*
 *.parquet
@@ -13,6 +14,9 @@ models/*
 # CSVs are ignored by default; published small outputs are exempted
 *.csv
 !outputs/**/*.csv
+
+# dated re-runs of the non-deterministic generation step never overwrite the receipt
+outputs/reruns/
 
 # ---- python and notebooks ----
 .venv/
