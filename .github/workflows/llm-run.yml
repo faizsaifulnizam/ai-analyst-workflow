@@ -1,13 +1,16 @@
 name: LLM run
 
 # Cloud re-run of the GENERATION step (the non-deterministic half) — dispatched
-# manually only, never on push. It exists because some networks block api.groq.com
-# at the egress (this build machine's VPN did); a GitHub-hosted runner reaches the
-# same Groq free tier. The run needs the repo secret GROQ_API_KEY.
+# manually only, never on push. It runs the committed `src/generate.py`
+# unchanged against the PINNED model id (`gemini-3.7-flash`, docs/model_note.md)
+# and needs the repo secret GOOGLE_API_KEY.
 #
-# The workflow prints which models the endpoint actually listed, then runs the
-# committed `src/generate.py` unchanged; the artifact carries the candidate SQL
-# plus the runner's pull manifest (so the caller can verify the data snapshot).
+# History: this workflow started as a Groq route because some networks block
+# api.groq.com at the egress; the 2026-10-04 run showed GitHub-hosted runners
+# are blocked there too (HTTP 403), so the pinned provider is now the Gemini
+# free tier. Set the secret with `gh secret set GOOGLE_API_KEY` (or remove it to
+# retire this route). The run prints which models the endpoint actually listed;
+# the artifact carries the candidate SQL plus the runner's pull manifest.
 # Re-runs land in outputs/reruns/<date>/ locally and never overwrite the
 # committed receipt.
 
@@ -19,7 +22,7 @@ permissions:
 
 jobs:
   generate:
-    name: generate candidates (Groq free tier)
+    name: generate candidates (Gemini free tier, pinned model)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -31,19 +34,20 @@ jobs:
       - name: Install pinned dependencies
         run: python -m pip install -r requirements.txt
 
-      - name: Probe the Groq models endpoint (evidence for docs/model_note.md)
+      - name: Probe the Gemini models endpoint (evidence for docs/model_note.md)
         env:
-          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
         run: |
           python - <<'EOF'
           import json, os, urllib.request as u
-          req = u.Request("https://api.groq.com/openai/v1/models",
-                          headers={"Authorization": f"Bearer {os.environ['GROQ_API_KEY']}"})
+          req = u.Request("https://generativelanguage.googleapis.com/v1beta/models",
+                          headers={"x-goog-api-key": os.environ["GOOGLE_API_KEY"]})
           with u.urlopen(req, timeout=60) as r:
-              data = json.loads(r.read())["data"]
-          print("models listed:", len(data))
-          for m in sorted(x["id"] for x in data):
-              print(" ", m)
+              data = json.loads(r.read())["models"]
+          ids = sorted(m["name"].removeprefix("models/") for m in data)
+          print("models listed:", len(ids))
+          for i in ids:
+              print(" ", i)
           EOF
 
       - name: Pull data + build the DuckDB table
@@ -51,10 +55,10 @@ jobs:
           python src/download.py
           python src/build_db.py
 
-      - name: Generate candidate SQL
+      - name: Generate candidate SQL (pinned model id)
         env:
-          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
-        run: python src/generate.py --out outputs/reruns/dispatch
+          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+        run: python src/generate.py --provider gemini --model gemini-3.7-flash --out outputs/reruns/dispatch
 
       - name: Upload candidates + runner manifest
         uses: actions/upload-artifact@v7

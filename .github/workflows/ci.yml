@@ -1,0 +1,29 @@
+name: CI
+
+# Stdlib artifact smoke — committed artifacts only, no network, no LLM calls.
+# The generation step is a receipt (non-deterministic), never run or diffed here.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    name: smoke tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"   # match the repo's .python-version
+
+      - name: Compile sources
+        run: python -m compileall -q src
+
+      - name: Check committed outputs and figures
+        run: python tests/smoke_test.py
