@@ -3,7 +3,7 @@
 **Run:** 2026-10-04 (receipt: [`outputs/results.csv`](../outputs/results.csv), [`outputs/summary.json`](../outputs/summary.json); config in [model_note.md](model_note.md)).
 **Result:** 27/32 first-try, **0 of 5 retries rescued anything**, 5 failures. **All 5 failures are `value_mismatch`** — the row counts were right and the values were wrong. No `sql_error`, no `guardrail_reject`, no `timeout`: every candidate was a well-formed single SELECT that the guardrails let through. That is itself a finding: on this question set the failure mode is *semantics*, not syntax or safety.
 
-Retries were offered to exactly the 5 failing questions (Q13, Q14, Q15, Q17, Q24). The retry feedback carries the error class and "did not match the verified answer" but never expected numbers — and on these five it changed nothing material (same fingerprint on both attempts for Q13/Q14/Q15/Q17; a different-but-still-wrong reading on Q24).
+Retries were offered to exactly the 5 failing questions (Q13, Q14, Q15, Q17, Q24). The retry feedback carries the error class and "did not match the verified answer" but never expected numbers — and on these five it changed nothing material (same fingerprint on both attempts for Q13/Q14/Q15/Q17; a differently-written but result-identical wrong answer on Q24).
 
 ## Classification
 
@@ -20,7 +20,7 @@ Retries were offered to exactly the 5 failing questions (Q13, Q14, Q15, Q17, Q24
 ### Q13 — grouping slip on a non-unique column *(trap caught)*
 **Question:** *How many distinct blocks were transacted in Bukit Merah in 2023?*
 **Both attempts:** `SELECT COUNT(DISTINCT block) ... WHERE town = 'BUKIT MERAH'` → **196**. Verified answer: **295** (distinct `street_name || '|' || block`).
-The trap is real and live: `block` is block-number text only, and the same string occurs in many towns/streets (9,755 distinct block strings vs 2,785 physical block identities per the data audit). The prompt's schema block says so in as many words ("NOT unique: the same string occurs in many towns/streets") — the model read it and still grouped on the wrong grain. The retry only swapped the date filter (`month` → `sale_date`), repeating the same mistake: the feedback "did not match" did not point at the grain.
+The trap is real and live: `block` is block-number text only, and the same string occurs in many towns/streets (2,785 distinct block strings vs 9,755 distinct town/street/block identities per the data audit). The prompt's schema block says so in as many words ("NOT unique: the same string occurs in many towns/streets") — the model read it and still grouped on the wrong grain. The retry only swapped the date filter (`month` → `sale_date`), repeating the same mistake: the feedback "did not match" did not point at the grain.
 **Next-iteration fix:** make the grain part of the question contract ("distinct block = distinct street + block pairs") rather than a schema hint; or add a lint that flags `COUNT(DISTINCT block)`/`GROUP BY block` for review.
 
 ### Q15 — window misuse: row frames over a gapped calendar *(trap caught)*

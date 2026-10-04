@@ -36,7 +36,7 @@ DATASET = "d_8b84c4ee58e3cfc0ece0d773c8ca6abc"
 DATASET_URL = f"https://data.gov.sg/datasets/{DATASET}/view"
 EXPECTED_HEADER = ("month,town,flat_type,block,street_name,storey_range,floor_area_sqm,"
                    "flat_model,lease_commence_date,remaining_lease,resale_price")
-ROW_FLOOR = 240000        # a truncated pull must fail loudly (241,822 rows at the 2026-10-02 pull)
+ROW_FLOOR = 240000        # a truncated pull must fail loudly (241,920 rows at the 2026-10-02 pull)
 MONTH_FLOOR_EARLY = "2017-01"
 MONTH_FLOOR_LATE = "2025-06"   # freshness floor: data must run at least to this month
 UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36"

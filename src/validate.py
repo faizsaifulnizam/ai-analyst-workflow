@@ -21,7 +21,9 @@ Outputs (temp + atomic replace; a failed run touches nothing):
 
 The committed outputs/ files are the receipt of the as-of run. A re-run writes
 only to its own --outdir (default outputs/reruns/<date>/ via src/generate.py);
-your re-run will differ — compare the two summary.json files.
+with a non-default --candidates and no --outdir, results land beside the
+candidates file — the committed receipt is never a re-run's default target.
+Your re-run will differ — compare the two summary.json files.
 """
 import argparse
 import csv
@@ -71,11 +73,17 @@ def atomic_write(path, text):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--candidates", default=str(ROOT / "outputs/candidates.jsonl"))
-    ap.add_argument("--outdir", default=str(ROOT / "outputs"))
+    ap.add_argument("--outdir", default=None,
+                    help="default: outputs/ for the committed candidates, else the candidates file's parent dir")
     args = ap.parse_args()
 
     cand_path = Path(args.candidates)
-    out_dir = Path(args.outdir)
+    if args.outdir is not None:
+        out_dir = Path(args.outdir)
+    elif args.candidates != ap.get_default("candidates"):
+        out_dir = cand_path.parent   # a re-run never overwrites the committed receipt
+    else:
+        out_dir = ROOT / "outputs"
     golden = load_golden()
 
     # 1 — golden fingerprints must reproduce from the database (deterministic receipt)
