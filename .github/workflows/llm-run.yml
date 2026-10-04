@@ -1,0 +1,65 @@
+name: LLM run
+
+# Cloud re-run of the GENERATION step (the non-deterministic half) — dispatched
+# manually only, never on push. It exists because some networks block api.groq.com
+# at the egress (this build machine's VPN did); a GitHub-hosted runner reaches the
+# same Groq free tier. The run needs the repo secret GROQ_API_KEY.
+#
+# The workflow prints which models the endpoint actually listed, then runs the
+# committed `src/generate.py` unchanged; the artifact carries the candidate SQL
+# plus the runner's pull manifest (so the caller can verify the data snapshot).
+# Re-runs land in outputs/reruns/<date>/ locally and never overwrite the
+# committed receipt.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  generate:
+    name: generate candidates (Groq free tier)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - name: Install pinned dependencies
+        run: python -m pip install -r requirements.txt
+
+      - name: Probe the Groq models endpoint (evidence for docs/model_note.md)
+        env:
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+        run: |
+          python - <<'EOF'
+          import json, os, urllib.request as u
+          req = u.Request("https://api.groq.com/openai/v1/models",
+                          headers={"Authorization": f"Bearer {os.environ['GROQ_API_KEY']}"})
+          with u.urlopen(req, timeout=60) as r:
+              data = json.loads(r.read())["data"]
+          print("models listed:", len(data))
+          for m in sorted(x["id"] for x in data):
+              print(" ", m)
+          EOF
+
+      - name: Pull data + build the DuckDB table
+        run: |
+          python src/download.py
+          python src/build_db.py
+
+      - name: Generate candidate SQL
+        env:
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+        run: python src/generate.py --out outputs/reruns/dispatch
+
+      - name: Upload candidates + runner manifest
+        uses: actions/upload-artifact@v7
+        with:
+          name: candidates
+          path: |
+            outputs/reruns/dispatch/candidates.jsonl
+            data/raw/pull_manifest.json
