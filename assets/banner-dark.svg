@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="320" viewBox="0 0 1280 320" role="img" aria-label="ai-analyst-workflow — can an LLM write correct SQL for a real analyst question, and how would I know when to trust it: 27 of 32 verified answers reproduced first try, 5 failed, retries rescued none, traps caught 3 of 6">
+  <rect width="1280" height="320" fill="#14293D"/>
+  <title>ai-analyst-workflow — a seven-repo series on Singapore's public data</title>
+  <text x="72" y="118" font-family="Georgia, 'Source Serif 4', serif" font-size="58" fill="#E7E3DC">ai-analyst-workflow</text>
+  <rect x="72" y="146" width="430" height="4" fill="#45A08B"/>
+  <text x="72" y="196" font-family="Inter, 'Helvetica Neue', Arial, sans-serif" font-size="20" fill="#A9B6C1">Can an LLM write correct SQL for a real analyst question —</text>
+  <text x="72" y="222" font-family="Inter, 'Helvetica Neue', Arial, sans-serif" font-size="20" fill="#A9B6C1">and how would I know when to trust it? As of 2026-10-04,</text>
+  <text x="72" y="248" font-family="Inter, 'Helvetica Neue', Arial, sans-serif" font-size="20" fill="#A9B6C1"><tspan fill="#45A08B">●</tspan> 27 of 32 verified answers reproduced first try, <tspan fill="#D97E4F">●</tspan> 5 failed;</text>
+  <text x="72" y="274" font-family="Inter, 'Helvetica Neue', Arial, sans-serif" font-size="20" fill="#A9B6C1">retries rescued none, deliberate traps caught 3 of 6.</text>
+  <text x="72" y="306" font-family="Inter, 'Helvetica Neue', Arial, sans-serif" font-size="16" fill="#8B98A5">Pass = byte-exact result fingerprint (row count + sha256) · validation discipline, not model magic</text>
+  <line x1="800" y1="132" x2="1200" y2="132" stroke="#2C4358" stroke-width="1"/>
+  <text x="800" y="152" font-family="Inter, Helvetica, Arial, sans-serif" font-size="13" fill="#8B98A5">32 golden questions · verdicts from the as-of run</text>
+  <rect x="800" y="164" width="338" height="22" fill="#45A08B"/>
+  <rect x="1138" y="164" width="62" height="22" fill="#D97E4F"/>
+  <text x="800" y="204" font-family="Inter, Helvetica, Arial, sans-serif" font-size="13" fill="#45A08B">27 passed first try</text>
+  <text x="1200" y="204" text-anchor="end" font-family="Inter, Helvetica, Arial, sans-serif" font-size="13" fill="#D97E4F">5 failed</text>
+  <line x1="800" y1="232" x2="1200" y2="232" stroke="#2C4358" stroke-width="1"/>
+  <text x="800" y="252" font-family="Inter, Helvetica, Arial, sans-serif" font-size="13" fill="#8B98A5">6 deliberate traps (wrong grain · gapped window · ambiguity)</text>
+  <rect x="800" y="262" width="200" height="16" fill="#45A08B"/>
+  <rect x="1000" y="262" width="200" height="16" fill="#D97E4F"/>
+  <text x="800" y="298" font-family="Inter, Helvetica, Arial, sans-serif" font-size="13" fill="#A9B6C1">3 avoided · 3 caught the model</text>
+  <text x="1208" y="314" text-anchor="end" font-family="Inter, 'Helvetica Neue', Arial, sans-serif" font-size="16" fill="#45A08B">A seven-repo series on Singapore's public data · 7 of 7</text>
+</svg>
