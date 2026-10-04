@@ -51,7 +51,7 @@ Each audited question's recorded verdict in `outputs/results.csv` is checked aga
 | Q28 | **pass first try** | 2023-06 / 1,500,000 | tie-break contract verified |
 | Q32 | **pass first try** | 6,665 | same |
 
-13 audited passes and 2 audited failures (15 verdicts, mix of pass and fail as required). In both failure-side checks (Q13 here; Q15's window frame in [failure_catalogue.md](failure_catalogue.md)) the independently recomputed golden answer is the one that stands.
+14 audited passes and 1 audited failure (Q13) — 15 verdicts, mix of pass and fail as required. Q15's failure-side check is covered in [failure_catalogue.md](failure_catalogue.md), not recomputed in the table above. In both failure-side checks (Q13 here; Q15's window frame in the catalogue) the independently recomputed golden answer is the one that stands.
 
 ## Discrepancy log
 

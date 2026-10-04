@@ -18,7 +18,7 @@
 
 - **27/32 first try · 0 after one retry · 5 fail.** Every question got ≤2 attempts; the retry saw the failed SQL plus an error class, never the expected numbers. All 5 failures are `value_mismatch` — no `sql_error`, no `guardrail_reject`, no `timeout` ([results.csv](outputs/results.csv)).
 - **Traps: 3 of 6 caught the model.** Q13 (grouped on non-unique `block` → 196 instead of 295 distinct blocks), Q15 (`ROWS 2 PRECEDING` over a series with 14 missing months), Q24 (deliberately ambiguous "prices gone up in the last year"). The other three traps — Q04's near-miss `flat_model`/`flat_type` column, Q12's block grain, Q26's lease-text months — were answered correctly first try ([failure catalogue](docs/failure_catalogue.md)).
-- **Where it breaks:** window questions 2/5, ambiguous 0/1, grouping 7/8; filters, aggregations, ratios, distinct and date questions all clean (17/17).
+- **Where it breaks:** window questions 2/5, ambiguous 0/1, grouping 7/8; filters, aggregations, ratios, distinct and date questions all clean (18/18).
 - **Everything deterministic re-derives:** 32/32 golden fingerprints reproduce from the DuckDB build (241,920 rows, 9/9 checks); re-running `src/validate.py` over the committed candidates is byte-identical; 15 verdicts re-computed by hand from the raw CSV with stdlib `Decimal` — 0 discrepancies ([audit](docs/audit.md)).
 
 <picture>
@@ -51,7 +51,7 @@ The answer this build supports: *it writes plausible SQL at least as often as it
 
 ## Method
 
-1. **Golden set** ([eval/golden_set.yaml](eval/golden_set.yaml)) — 32 hand-written questions in analyst phrasing across 8 question types, including **6 deliberate traps** (a question whose obvious SQL is subtly wrong). Each question carries canonical SQL with a deterministic `ORDER BY`, a one-line "why it is in the set", and a result fingerprint. Versioned.
+1. **Golden set** ([eval/golden_set.yaml](eval/golden_set.yaml)) — 32 hand-written questions in analyst phrasing across 8 question types, including **6 deliberate traps** (a question whose obvious SQL is subtly wrong). Each question carries canonical SQL with a deterministic `ORDER BY` where the result has multiple rows, a one-line "why it is in the set", and a result fingerprint. Versioned.
 2. **Fingerprint** ([src/fingerprint.py](src/fingerprint.py)) — one canonical serializer shared by the golden set and the comparison: every cell formatted to 2 dp (so `2017` the integer and `2017` the text are visibly different, `42` and `42.0` are not), rows joined in order, sha256 over the ordered result. Row count + hash, nothing else. Order is part of the contract.
 3. **Generate** ([src/generate.py](src/generate.py)) — one prompt template ([prompts/sql_prompt.md](prompts/sql_prompt.md)) = question text + schema block, no rows. ≤2 attempts per question; attempt 2 sees attempt 1's SQL and an error class, never expected numbers. Resumable per question; runs land in `outputs/reruns/<date>/` and never overwrite the committed receipt.
 4. **Guardrails** ([src/guardrails.py](src/guardrails.py)) — every candidate is executed under a trust boundary: parse-based single-SELECT check (sqlglot — a `startswith('select')` check would accept `SELECT 1; DROP TABLE resale`), table allowlist, no filesystem/catalog functions, read-only DuckDB connection, wall-clock watchdog (`con.interrupt()` after 15 s), 10,000-row cap. Runnable self-check: `python src/guardrails.py`.
@@ -74,7 +74,7 @@ The answer this build supports: *it writes plausible SQL at least as often as it
 
 - **Golden fingerprints: 32/32 reproduce** from the database build; a changed input makes `src/validate.py` exit 1 rather than re-pin.
 - **Determinism:** re-validating the committed candidates twice produced byte-identical `results.csv` (`da76ab9a…`) and `summary.json` (`8ba883ef…`), matching the committed files. Figures render twice in the same environment and the two PNGs are sha256-compared before promotion ([src/figures.py](src/figures.py)).
-- **Independent audit:** 15 verdicts re-derived from the raw CSV with stdlib `csv` + `Decimal` (no DuckDB, no `src/` imports) — 13 passes confirmed and 2 failures confirmed as candidate-SQL faults, **0 discrepancies**. Both trap contrasts reproduce (Q04: 688 vs 35; Q13: 295 vs 196) ([audit](docs/audit.md)).
+- **Independent audit:** 15 verdicts re-derived from the raw CSV with stdlib `csv` + `Decimal` (no DuckDB, no `src/` imports) — 14 passes confirmed and 1 failure (Q13) confirmed as a candidate-SQL fault, with Q15's failure-side check covered in the [failure catalogue](docs/failure_catalogue.md), **0 discrepancies**. Both trap contrasts reproduce (Q04: 688 vs 35; Q13: 295 vs 196) ([audit](docs/audit.md)).
 - **Guardrails self-check passes** (`python src/guardrails.py`): 8 escape attempts rejected, benign SELECT accepted. This run gave them nothing to reject — 0 `guardrail_reject`, 0 `sql_error`, 0 `timeout` — which is a statement about this question set, not a claim that the guardrails are optional.
 - **CI** runs a stdlib-only smoke test over the committed artifacts ([tests/smoke_test.py](tests/smoke_test.py)): schema subsets, verdict/summary agreement, per-run numeric anchors, figure presence and size floors in both themes, and a potency check that fails the suite when an implausible pass count is substituted at the loading boundary.
 
