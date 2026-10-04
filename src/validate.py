@@ -51,7 +51,9 @@ def classify(res, want):
     n, h = fingerprint(res["rows"])
     if n != want.get("rows"):
         return "wrong_row_count", f"rows {n} != {want.get('rows')}"
-    return "value_mismatch", f"rows {n} right, sha {h[:12]} != {str(want.get('sha256'))[:12]}"
+    if h != want.get("sha256"):
+        return "value_mismatch", f"rows {n} right, sha {h[:12]} != {str(want.get('sha256'))[:12]}"
+    return "", ""   # exact fingerprint match = pass
 
 
 def run_attempt(sql, want):
@@ -108,6 +110,8 @@ def main():
 
     rows, counts = [], {"pass_first_try": 0, "pass_after_retry": 0, "fail": 0}
     mm_counts = {}
+    models_used = sorted({cand[q["id"]].get("model") or meta.get("model")
+                          for q in golden["questions"]})
     for q in golden["questions"]:
         want = q.get("fingerprint") or {}
         atts = cand[q["id"]]["attempts"]
@@ -147,7 +151,8 @@ def main():
 
     summary = {
         "receipt": {
-            "model": meta.get("model"), "run_date": meta.get("run_date"),
+            "model": meta.get("model"), "models_used": models_used,
+            "run_date": meta.get("run_date"),
             "temperature": meta.get("temperature"), "max_tokens": meta.get("max_tokens"),
             "prompt": meta.get("prompt"), "golden_set_version": golden.get("version"),
             "golden_fingerprints_verified": True,

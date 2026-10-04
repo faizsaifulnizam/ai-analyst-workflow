@@ -1,0 +1,71 @@
+{
+  "receipt": {
+    "model": "gemini-3.7-flash",
+    "models_used": [
+      "gemini-3.1-flash-lite",
+      "gemini-3.5-flash",
+      "gemini-3.7-flash"
+    ],
+    "run_date": "2026-10-04",
+    "temperature": 0,
+    "max_tokens": 2048,
+    "prompt": "prompts/sql_prompt.md",
+    "golden_set_version": 1,
+    "golden_fingerprints_verified": true,
+    "candidates_file": "candidates.jsonl"
+  },
+  "totals": {
+    "questions": 32,
+    "pass_first_try": 27,
+    "pass_after_retry": 0,
+    "fail": 5,
+    "passed": 27
+  },
+  "mismatch_counts": {
+    "value_mismatch": 5
+  },
+  "by_type": {
+    "aggregation": {
+      "n": 5,
+      "passed": 5
+    },
+    "ambiguous": {
+      "n": 1,
+      "passed": 0
+    },
+    "date": {
+      "n": 3,
+      "passed": 3
+    },
+    "distinct": {
+      "n": 2,
+      "passed": 2
+    },
+    "filter": {
+      "n": 4,
+      "passed": 4
+    },
+    "grouping": {
+      "n": 8,
+      "passed": 7
+    },
+    "ratio": {
+      "n": 4,
+      "passed": 4
+    },
+    "window": {
+      "n": 5,
+      "passed": 2
+    }
+  },
+  "by_trap": {
+    "true": {
+      "n": 6,
+      "passed": 3
+    },
+    "false": {
+      "n": 26,
+      "passed": 24
+    }
+  }
+}

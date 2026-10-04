@@ -1,0 +1,33 @@
+question_id,type,trap,status,mismatch_type,attempts,attempt1_status,attempt1_mismatch,attempt2_status,attempt2_mismatch,note
+Q01,filter,false,pass_first_try,,1,pass,,,,
+Q02,filter,false,pass_first_try,,1,pass,,,,
+Q03,filter,false,pass_first_try,,1,pass,,,,
+Q04,filter,true,pass_first_try,,1,pass,,,,
+Q05,aggregation,false,pass_first_try,,1,pass,,,,
+Q06,aggregation,false,pass_first_try,,1,pass,,,,
+Q07,ratio,false,pass_first_try,,1,pass,,,,
+Q08,grouping,false,pass_first_try,,1,pass,,,,
+Q09,grouping,false,pass_first_try,,1,pass,,,,
+Q10,grouping,false,pass_first_try,,1,pass,,,,
+Q11,grouping,false,pass_first_try,,1,pass,,,,
+Q12,grouping,true,pass_first_try,,1,pass,,,,
+Q13,grouping,true,fail,value_mismatch,2,value_mismatch,value_mismatch,value_mismatch,value_mismatch,"rows 1 right, sha ea2a48354ec4 != 228e8d338727"
+Q14,window,false,fail,value_mismatch,2,value_mismatch,value_mismatch,value_mismatch,value_mismatch,"rows 12 right, sha 8d436e2d75e6 != 0aed0e86d2f1"
+Q15,window,true,fail,value_mismatch,2,value_mismatch,value_mismatch,value_mismatch,value_mismatch,"rows 22 right, sha b17deaef1f39 != 12ebce27c25f"
+Q16,window,false,pass_first_try,,1,pass,,,,
+Q17,window,false,fail,value_mismatch,2,value_mismatch,value_mismatch,value_mismatch,value_mismatch,"rows 9 right, sha 37291145b169 != 537d491eaef2"
+Q18,ratio,false,pass_first_try,,1,pass,,,,
+Q19,aggregation,false,pass_first_try,,1,pass,,,,
+Q20,distinct,false,pass_first_try,,1,pass,,,,
+Q21,distinct,false,pass_first_try,,1,pass,,,,
+Q22,date,false,pass_first_try,,1,pass,,,,
+Q23,ratio,false,pass_first_try,,1,pass,,,,
+Q24,ambiguous,true,fail,value_mismatch,2,value_mismatch,value_mismatch,value_mismatch,value_mismatch,"rows 1 right, sha 5082289dda31 != 84ee70730fb9"
+Q25,grouping,false,pass_first_try,,1,pass,,,,
+Q26,aggregation,true,pass_first_try,,1,pass,,,,
+Q27,aggregation,false,pass_first_try,,1,pass,,,,
+Q28,date,false,pass_first_try,,1,pass,,,,
+Q29,grouping,false,pass_first_try,,1,pass,,,,
+Q30,ratio,false,pass_first_try,,1,pass,,,,
+Q31,window,false,pass_first_try,,1,pass,,,,
+Q32,date,false,pass_first_try,,1,pass,,,,
