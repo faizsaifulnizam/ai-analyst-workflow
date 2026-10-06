@@ -1,16 +1,31 @@
-# Decision memo — ai-analyst-workflow (2026-10-04)
+# Decision memo — ai-analyst-workflow
 
-**Decision:** ship the LLM-eval repo with a **dated generation receipt** and make validation — not generation — the product. One prompt → guardrailed execution → result-fingerprint comparison against a hand-written golden set, every failure catalogued, a sample audited by hand from raw rows.
+**Recommendation: propose a supervised feasibility pilot, not adoption or production use.** Start with recurring single-table tasks whose answers can be checked independently. The analyst owns the question and the validated answer, so model output cannot trigger unattended external reporting or business decisions.
 
-**Why this shape.** The hiring claim behind this repo is "I can use AI tools *and* judge their output". A demo that only shows generation proves the first half. The deliverable therefore spends its complexity on the trust boundary: parse-based SELECT-only guardrails (sqlglot), read-only execution with a watchdog and row cap, one shared result serializer for golden and candidate comparison, and a mismatch taxonomy (`sql_error · guardrail_reject · timeout · wrong_row_count · value_mismatch`). Golden SQL is hand-written — the moment the model writes the reference, the eval measures self-consistency.
+## Evidence behind the recommendation
 
-**Key calls made during the build:**
+The 2026-10-04 receipt records 27/32 first-try passes, no retry rescues and five value-level wrong answers despite correct row counts. Comparing candidate results with known gold references caught those five errors. **This does not prove correctness checking for new questions without gold answers.** A fingerprint checks agreement with a reference, not whether that reference answers the right business question. The golden set's reading of an ambiguous question is a pinned choice, so clarify the intended reading before generating SQL.
 
-1. **Fingerprints over SQL diffs.** The result is what an analyst consumes; SQL text can be wrong in a thousand spellings and right in a thousand others. Row count + sha256 over canonically ordered rows (2 dp numbers) is order-sensitive on purpose and dialect-agnostic.
-2. **Deliberate traps are half the eval.** 6 of 32 questions encode real data hazards (non-unique `block`, `flat_model`/`flat_type` near-miss, gapped-series windows, lease-text months, deliberate ambiguity). They measure the failure mode that slips past code review.
-3. **A dated receipt, not fake reproducibility.** Free-tier generation is not byte-reproducible and is capped (20 requests/day/model), so the run's model ids + date live inside `outputs/summary.json`, re-runs write `outputs/reruns/<date>/`, and only the deterministic half is byte-gated. The as-of run spans three sibling free-tier model ids because of that quota wall; the alternative was no receipt at all. This is disclosed in the README, `docs/model_note.md` and the per-question `model` field of `candidates.jsonl`.
-4. **Failures lead.** The README answers with 27/32 first try **and** the five failures first: all value-level, all plausible-looking, retries rescued none, 3 of 6 traps caught the model. The durable output is the failure taxonomy and its fixes, not the pass rate.
+This was a small, selected set on one HDB table using three free-tier Gemini model ids. It is a workflow receipt, not a generalizable accuracy estimate or model ranking. Neither time savings nor deployment readiness was measured. The parse-based SELECT-only boundary, read-only execution, watchdog and row cap reduce execution risk, but they do not establish answer correctness.
 
-**What this changes next iteration:** spell contract details in the questions themselves (rounding order, label types — 2 of 5 failures were contract slips), put window-frame semantics in the prompt contract, and route ambiguous questions to a question-rewrite track instead of counting them against the model. A single-model re-run on `gemini-3.7-flash` is one command when its quota resets, if model purity ever matters more than the workflow receipt.
+## Proposed pilot scope and checks
 
-**What we are not claiming:** no benchmark, no model ranking, no fine-tuning, no causal or predictive story. Adjacent work (BIRD/Spider model research; generic eval harnesses such as `jmpei/nl2sql-agents`) is named in the README as adjacent, not as inferior prior art.
+1. **Choose tasks with an independent check.** Start with recurring single-table counts, totals or grouped summaries where a separately maintained report or analyst calculation can supply a reference. Confirm grain, dates, filters, units, rounding and output types before SQL. Keep joins, changing schemas and unresolved ambiguous questions out of the initial scope.
+2. **Keep verification separate from generation.** An analyst reviews the SQL and result against the agreed question and independent reference. Without a reliable reference oracle, manually verify from source data before using the answer. Do not treat another model's agreement, a plausible query or the right row count as proof. Hold tasks where reliable independent verification cannot be supplied.
+3. **Clear data use first.** Review privacy requirements and provider terms before any private data, schema or prompt is sent. The public-data run does not authorize private-data use. Keep execution read-only and require analyst approval before an answer enters a report or decision.
+
+## What to measure
+
+Compare manual and assisted work on comparable tasks and the same input snapshot. Record **time to a validated answer**, including clarification, SQL work, verification and corrections. Also record setup, reference creation and maintenance, and reviewer effort so shared costs are visible rather than hidden as savings. Account for task difficulty and order when comparing the two routes.
+
+Keep held-out tasks separate from prompt or workflow tuning. After the normal reviewer signs off, independently check their answers against source data or separately established references to identify material errors that escaped review. Report corrections, rejected answers and review escapes alongside time and total effort. Replaying the existing gold set alone cannot measure how well review catches errors on new work.
+
+## Decision gate, agreed before starting
+
+The analyst and business owner should predefine task-specific acceptance criteria for correctness, material error consequences, verification coverage and total effort. A reporting total and an exploratory summary need different checks, so no arbitrary pass-rate or savings threshold is proposed here.
+
+**Hold or stop the pilot if reliable independent verification is unavailable or a material error escapes review.** Investigate the cause and re-check the affected tasks before considering a restart. Continue only within the agreed scope if the evidence meets the predefined criteria. Even then, the result supports a separate adoption review, not automatic deployment or unattended use.
+
+## What this memo cannot say
+
+No measured savings, production-readiness claim, model ranking or conclusion about multi-table work. The existing generation receipt remains dated and unchanged. Next technical iteration: make rounding and label contracts explicit, clarify ambiguity before SQL, and test window-frame semantics. Those changes would need fresh evaluation, not a reinterpretation of the recorded five failures.

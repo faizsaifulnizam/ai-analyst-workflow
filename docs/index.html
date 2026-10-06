@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>ai-analyst-workflow — can an LLM write correct SQL for a real analyst question?</title>
-<meta name="description" content="27/32 first try · 0 after one retry · 5 fail — all value_mismatch. A free-tier LLM wrote SQL for 32 hand-written analyst questions on 241,920 rows of HDB resale data; every wrong answer was caught by the result fingerprint, not by reading the SQL.">
+<meta name="description" content="27/32 first try, 5 wrong answers caught against known gold references. A dated, mixed-model SQL receipt on HDB data supports a proposed supervised feasibility pilot, not adoption or correctness checking without gold answers.">
 <meta property="og:title" content="ai-analyst-workflow — 27/32 first try, 5 confident wrong answers">
 <meta property="og:description" content="27/32 first try · 0 after one retry · 5 fail — all value_mismatch (row counts right on all 32). Deliberate traps caught the model 3 of 6; clean question classes 18/18; 15 verdicts re-derived independently, 0 discrepancies.">
 <meta property="og:type" content="website">
@@ -57,7 +57,7 @@ footer{border-top:1px solid var(--rule);margin-top:60px;padding-top:18px;color:v
 </picture>
 </div>
 
-<p class="lead"><b>27/32 first try · 0 after one retry · 5 fail — all value_mismatch.</b> On 2026-10-04 a free-tier LLM wrote SQL for 32 hand-written analyst questions. The part worth reading is the failures: all 5 were value-level wrong answers that looked right (correct row counts, wrong values), retries rescued none of them, and half the deliberate traps caught the model. Every wrong answer was caught by the result fingerprint (a hash of the actual rows returned), not by reading the SQL. In one line: I would trust it as a <b>checker</b> for single-table analyst SQL — not the model's SQL unverified, and not these numbers for multi-table work or model ranking.</p>
+<p class="lead"><b>27/32 first try · 0 after one retry · 5 fail — all value_mismatch.</b> On 2026-10-04 a free-tier LLM wrote SQL for 32 hand-written analyst questions. All five failures returned the right row counts but wrong values, retries rescued none, and 3 of 6 deliberate traps caught the model. Comparing results with known gold references caught those five errors, but <b>that does not prove the workflow can check new questions without gold answers</b>. I would propose a supervised feasibility pilot, not adoption or production use.</p>
 
 <div class="stats">
   <div class="stat"><div class="n">27/32 · 0 · 5</div><div class="l">first try · after one retry · fail — every failure is <code>value_mismatch</code>, row counts right on all 32; no <code>sql_error</code>, no <code>guardrail_reject</code>, no <code>timeout</code>. The retry saw the failed SQL plus an error class, never the expected numbers</div></div>
@@ -82,6 +82,15 @@ footer{border-top:1px solid var(--rule);margin-top:60px;padding-top:18px;color:v
 </picture>
 <figcaption>Every failure in this run is a value-level mismatch: the model returned the right number of rows and the wrong values. Nothing failed on syntax or on the safety guardrails. The taxonomy is the contract even where a class is empty — a future run that starts producing <code>guardrail_reject</code>s means the prompt or schema changed. Full write-up in the <a href="https://github.com/faizsaifulnizam/ai-analyst-workflow/blob/main/docs/failure_catalogue.md">failure catalogue</a>.</figcaption>
 </div>
+
+<h2>Decision implications: proposed feasibility pilot</h2>
+<ul>
+<li><b>Start narrow.</b> Use recurring single-table tasks with independent reference checks. Clarify ambiguous questions before SQL, including grain, dates and rounding. Without a reliable reference oracle, verify manually from source data before using the answer.</li>
+<li><b>Keep an analyst accountable.</b> Review the question, SQL and result before use. No unattended external reporting or business decisions. Review privacy and provider terms before using private data, because this public-data run gives no permission to send private schemas, prompts or rows.</li>
+<li><b>Measure the whole job.</b> Compare manual versus assisted time to a validated answer, including verification, corrections, setup, reference maintenance and reviewer effort. Independently check held-out tasks for material errors escaping review. No savings or deployment readiness was measured, and this small, selected, mixed-model result is not generalizable.</li>
+<li><b>Set the gate before starting.</b> Predefine task-specific acceptance criteria with the analyst and business owner, based on error consequences and total effort rather than an arbitrary pass-rate target. Hold or stop the pilot if reliable independent verification is unavailable or a material error escapes review. Any adoption decision remains separate.</li>
+</ul>
+<p>See the <a href="https://github.com/faizsaifulnizam/ai-analyst-workflow/blob/main/docs/decision_memo.md">decision memo</a> for the proposed checks and decision gate.</p>
 
 <h2>What this cannot say</h2>
 <ul>
