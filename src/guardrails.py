@@ -86,7 +86,7 @@ def check_sql(sql):
     return True, "ok"
 
 
-def execute_sql(sql, timeout_s=TIMEOUT_S, row_cap=ROW_CAP):
+def execute_sql(sql, timeout_s=TIMEOUT_S, row_cap=ROW_CAP, as_of=None):
     """Run one candidate under the guardrails. Returns a dict:
     outcome: ok | guardrail_reject | timeout | sql_error
     rows:    list of tuples (outcome == ok only)
@@ -95,6 +95,13 @@ def execute_sql(sql, timeout_s=TIMEOUT_S, row_cap=ROW_CAP):
     if not ok:
         return {"outcome": "guardrail_reject", "note": reason}
 
+    if as_of is not None:
+        from datetime import date
+        day = date.fromisoformat(as_of).isoformat()
+        tree = sqlglot.parse_one(sql, read="duckdb")
+        tree = tree.transform(lambda node: sqlglot.parse_one(f"DATE '{day}'", read="duckdb")
+                              if isinstance(node, exp.CurrentDate) else node)
+        sql = tree.sql(dialect="duckdb")
     con = duckdb.connect(str(DB), read_only=True)
     watchdog = threading.Timer(timeout_s, con.interrupt)
     watchdog.start()

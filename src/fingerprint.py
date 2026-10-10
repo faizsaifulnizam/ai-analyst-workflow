@@ -41,9 +41,38 @@ def canonical_cell(v):
     return str(v)
 
 
-def fingerprint(rows):
-    """(row_count, sha256) over the canonically serialized, ordered rows."""
-    payload = RS.join(US.join(canonical_cell(c) for c in row) for row in rows)
+def fingerprint(rows, version=1):
+    """Version 1 preserves historical pins; version 2 frames typed cells.
+
+    Numeric equivalence is explicitly two decimal places, without a float
+    conversion of integers/Decimals. Dates and full timestamps remain distinct.
+    """
+    if version == 1:
+        payload = RS.join(US.join(canonical_cell(c) for c in row) for row in rows)
+    elif version == 2:
+        import json
+        from datetime import date, datetime
+        def cell(v):
+            if v is None:
+                return ["null"]
+            if isinstance(v, bool):
+                return ["bool", v]
+            if isinstance(v, (int, float, Decimal)):
+                number = Decimal(str(v))
+                if not number.is_finite():
+                    raise ValueError("non-finite result number")
+                return ["number", format(number, ".2f") if number else "0.00"]
+            if isinstance(v, datetime):
+                return ["datetime", v.isoformat()]
+            if isinstance(v, date):
+                return ["date", v.isoformat()]
+            if isinstance(v, str):
+                return ["text", v]
+            raise TypeError(f"unsupported result type: {type(v).__name__}")
+        payload = json.dumps([[cell(v) for v in row] for row in rows],
+                             ensure_ascii=False, separators=(",", ":"))
+    else:
+        raise ValueError("unsupported fingerprint version")
     return len(rows), hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 

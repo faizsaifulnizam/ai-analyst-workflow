@@ -61,10 +61,33 @@ def validate(data: bytes):
     header = lines[0].strip().lstrip("\ufeff")
     if header != EXPECTED_HEADER:
         problems.append(f"header mismatch: {header!r}")
-    body = [ln for ln in lines[1:] if ln.strip()]
+    import csv
+    import io
+    import math
+    import re
+    try:
+        parsed = list(csv.reader(io.StringIO(text), strict=True))
+    except csv.Error:
+        return None, ["malformed CSV"]
+    body = [row for row in parsed[1:] if row]
+    for row in body:
+        if len(row) != 11:
+            problems.append("CSV record must have 11 fields")
+            break
+        try:
+            values = [float(row[i]) for i in (6, 10)]
+            lease = re.fullmatch(r"([0-9]+) years?(?: ([0-9]{1,2}) months?)?", row[9])
+            if not all(math.isfinite(v) and v > 0 for v in values):
+                raise ValueError
+            if not lease or int(lease[2] or 0) > 11:
+                raise ValueError
+            datetime.strptime(row[0], "%Y-%m")
+        except ValueError:
+            problems.append("invalid month, finite positive numeric field or lease")
+            break
     if len(body) < ROW_FLOOR:
         problems.append(f"only {len(body)} rows (< floor {ROW_FLOOR})")
-    months = sorted({ln[:7] for ln in body if len(ln) > 6 and ln[4:5] == "-" and ln[:4].isdigit()})
+    months = sorted({row[0] for row in body if row and re.fullmatch(r"[0-9]{4}-[0-9]{2}", row[0])})
     if not months:
         problems.append("no parseable YYYY-MM months")
     else:
@@ -165,8 +188,10 @@ def main():
                     kept = old.get("retrieved_at")
             except (OSError, ValueError):
                 kept = None
-        os.replace(part, OUT)
-        write_manifest(info, kept or datetime.now().astimezone().isoformat(timespec="seconds"))
+        sys.path.insert(0, str(ROOT))
+        from src.publication import publish
+        publish({OUT: part.read_bytes(), MANIFEST: manifest_text(
+            info, kept or datetime.now().astimezone().isoformat(timespec="seconds")).encode("utf-8")})
         print(f"  ok: {info['bytes']} bytes | {info['rows']} rows | {info['month_min']} -> {info['month_max']}")
     finally:
         part.unlink(missing_ok=True)

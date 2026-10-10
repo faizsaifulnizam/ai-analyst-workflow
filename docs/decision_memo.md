@@ -4,7 +4,7 @@
 
 ## Evidence behind the recommendation
 
-The 2026-10-04 receipt records 27/32 first-try passes, no retry rescues and five value-level wrong answers despite correct row counts. Comparing candidate results with known gold references caught those five errors. **This does not prove correctness checking for new questions without gold answers.** A fingerprint checks agreement with a reference, not whether that reference answers the right business question. The golden set's reading of an ambiguous question is a pinned choice, so clarify the intended reading before generating SQL.
+The 2026-10-04 receipt records 27/32 first-try passes, no retry rescues and five strict disagreements despite matching row counts: two semantic errors, two contract slips and one deliberate ambiguity. Comparing candidate results with known gold references caught those five errors. **This does not prove correctness checking for new questions without gold answers.** A fingerprint checks agreement with a reference, not whether that reference answers the right business question. The golden set's reading of an ambiguous question is a pinned choice, so clarify the intended reading before generating SQL.
 
 This was a small, selected set on one HDB table using three free-tier Gemini model ids. It is a workflow receipt, not a generalizable accuracy estimate or model ranking. Neither time savings nor deployment readiness was measured. The parse-based SELECT-only boundary, read-only execution, watchdog and row cap reduce execution risk, but they do not establish answer correctness.
 

@@ -1,5 +1,7 @@
 # What never leaves the machine — governance note
 
+**Current implementation:** retry prompts include the previous model SQL and one fixed result-contract message. Engine diagnostics are never interpolated: both provider builders are exercised by offline canary tests. Earlier code could include a database value in an execution-error message; this is a conditional privacy defect, not evidence of historical leakage. The historical payload log was not recovered, so absolute historical no-row claims below are not independently certified.
+
 The repo's question is about *trust*; this file is about *data*. Short version: **no row data is ever sent to a model. Only question text and a schema block leave the machine; everything else — the 241,920 raw rows, the DuckDB file, the fingerprints — stays local.**
 
 ## What is sent to the model provider
@@ -9,7 +11,7 @@ The repo's question is about *trust*; this file is about *data*. Short version: 
 1. the analyst question text (written by hand in [`eval/golden_set.yaml`](../eval/golden_set.yaml));
 2. the schema block: table + column names and one-line semantics (the same DDL that is committed in [`sql/00_build_db.sql`](../sql/00_build_db.sql)).
 
-On the retry attempt, additionally: the model's own previous SQL and an error class (`sql_error`, `guardrail_reject`, `timeout`) with the engine message, or a bare "did not match the verified answer". **Expected answers, golden fingerprints, row counts and result values are never included in any prompt.**
+On the retry attempt, additionally: the model's own previous SQL and a fixed result-contract message, with no engine diagnostics. **Expected answers, golden fingerprints, row counts and result values are never included in any prompt.**
 
 ## What is never sent
 

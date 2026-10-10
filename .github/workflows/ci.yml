@@ -12,6 +12,27 @@ permissions:
   contents: read
 
 jobs:
+  offline:
+    name: frozen offline contracts
+    runs-on: ubuntu-latest
+    env:
+      PYTHONUTF8: "1"
+      PYTHONDONTWRITEBYTECODE: "1"
+      OPENBLAS_NUM_THREADS: "1"
+      OMP_NUM_THREADS: "1"
+      MKL_NUM_THREADS: "1"
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: Install documented direct pins
+        run: python -m pip install -r requirements.txt
+      - name: Replay frozen source and enforce full no-skip acceptance
+        run: python tests/offline_ci.py
+      - name: Original analytical receipts remain unchanged
+        run: git diff --exit-code -- eval/golden_set.yaml outputs data/raw/pull_manifest.json docs/data_audit.md
+
   smoke:
     name: smoke tests
     runs-on: ubuntu-latest

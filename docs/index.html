@@ -4,9 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>ai-analyst-workflow — can an LLM write correct SQL for a real analyst question?</title>
-<meta name="description" content="27/32 first try, 5 wrong answers caught against known gold references. A dated, mixed-model SQL receipt on HDB data supports a proposed supervised feasibility pilot, not adoption or correctness checking without gold answers.">
-<meta property="og:title" content="ai-analyst-workflow — 27/32 first try, 5 confident wrong answers">
-<meta property="og:description" content="27/32 first try · 0 after one retry · 5 fail — all value_mismatch (row counts right on all 32). Deliberate traps caught the model 3 of 6; clean question classes 18/18; 15 verdicts re-derived independently, 0 discrepancies.">
+<meta name="description" content="27/32 first try, 5 strict disagreements with known gold references. A dated, mixed-model SQL receipt on HDB data supports a proposed supervised feasibility pilot, not adoption or correctness checking without gold answers.">
+<meta property="og:title" content="ai-analyst-workflow — 27/32 first try, 5 strict reference disagreements">
+<meta property="og:description" content="27/32 first try · 0 after one retry · 5 fail — all value_mismatch (row counts right on all 32). Deliberate traps caught the model 3 of 6; clean question classes 18/18; 15 historically reported verdicts (original script unavailable) re-derived independently, 0 discrepancies.">
 <meta property="og:type" content="website">
 <meta property="og:image" content="https://faizsaifulnizam.github.io/ai-analyst-workflow/img/social-card.png">
 <meta property="og:image:width" content="1280">
@@ -46,7 +46,8 @@ footer{border-top:1px solid var(--rule);margin-top:60px;padding-top:18px;color:v
 </style>
 </head>
 <body>
-<div class="wrap">
+<main class="wrap">
+<h1>Can an LLM write correct SQL — and how would I know?</h1>
 
 <p class="series">HDB resale flat prices via data.gov.sg · 241,920 rows, 2017-01 → 2026-10 · Six-on-SG · 7 of 7</p>
 
@@ -57,7 +58,7 @@ footer{border-top:1px solid var(--rule);margin-top:60px;padding-top:18px;color:v
 </picture>
 </div>
 
-<p class="lead"><b>27/32 first try · 0 after one retry · 5 fail — all value_mismatch.</b> On 2026-10-04 a free-tier LLM wrote SQL for 32 hand-written analyst questions. All five failures returned the right row counts but wrong values, retries rescued none, and 3 of 6 deliberate traps caught the model. Comparing results with known gold references caught those five errors, but <b>that does not prove the workflow can check new questions without gold answers</b>. I would propose a supervised feasibility pilot, not adoption or production use.</p>
+<p class="lead"><b>27/32 first try · 0 after one retry · 5 fail — all value_mismatch.</b> On 2026-10-04 a free-tier LLM wrote SQL for 32 hand-written analyst questions. Five results disagreed with pinned references: two semantic errors, two contract slips and one deliberate ambiguity, retries rescued none, and 3 of 6 deliberate traps caught the model. Comparing results with known gold references caught those five errors, but <b>that does not prove the workflow can check new questions without gold answers</b>. I would propose a supervised feasibility pilot, not adoption or production use.</p>
 
 <div class="stats">
   <div class="stat"><div class="n">27/32 · 0 · 5</div><div class="l">first try · after one retry · fail — every failure is <code>value_mismatch</code>, row counts right on all 32; no <code>sql_error</code>, no <code>guardrail_reject</code>, no <code>timeout</code>. The retry saw the failed SQL plus an error class, never the expected numbers</div></div>
@@ -66,22 +67,22 @@ footer{border-top:1px solid var(--rule);margin-top:60px;padding-top:18px;color:v
   <div class="stat"><div class="n">32/32 · 0 discrepancies</div><div class="l">golden fingerprints reproduce from the DuckDB build (241,920 rows, 9/9 checks); 15 verdicts (14 passes + 1 failure) re-derived from the raw CSV with stdlib <code>Decimal</code> — no DuckDB, no repo code</div></div>
 </div>
 
-<div class="fig">
+<figure class="fig">
 <picture>
 <source media="(prefers-color-scheme: dark)" srcset="img/f2_pass_rate-dark.png">
 <img src="img/f2_pass_rate.png" alt="Bar chart of pass rate by question type: filter 4 of 4, aggregation 5 of 5, ratio 4 of 4, grouping 7 of 8, window 2 of 5, distinct 2 of 2, date 3 of 3, ambiguous 0 of 1; trap questions passed 3 of 6 versus 24 of 26 for everything else">
 </picture>
 <figcaption>Pass rate by question type (left) and deliberate traps versus everything else (right). A pass is a byte-exact result fingerprint, not a human review. As-of run 2026-10-04.</figcaption>
-</div>
+</figure>
 
 <h2>The failure view</h2>
-<div class="fig">
+<figure class="fig">
 <picture>
 <source media="(prefers-color-scheme: dark)" srcset="img/f3_failures-dark.png">
 <img src="img/f3_failures.png" alt="Failure-type breakdown: 5 value_mismatch, 0 wrong_row_count, 0 sql_error, 0 guardrail_reject, 0 timeout; verdict mix 27 first try, 0 after retry, 5 fail">
 </picture>
-<figcaption>Every failure in this run is a value-level mismatch: the model returned the right number of rows and the wrong values. Nothing failed on syntax or on the safety guardrails. The taxonomy is the contract even where a class is empty — a future run that starts producing <code>guardrail_reject</code>s means the prompt or schema changed. Full write-up in the <a href="https://github.com/faizsaifulnizam/ai-analyst-workflow/blob/main/docs/failure_catalogue.md">failure catalogue</a>.</figcaption>
-</div>
+<figcaption>Every strict failure is a reference disagreement with matching row counts: two semantic errors, two contract slips and one deliberate ambiguity. Nothing failed on syntax or on the safety guardrails. The taxonomy is the contract even where a class is empty — a future run that starts producing <code>guardrail_reject</code>s means the prompt or schema changed. Full write-up in the <a href="https://github.com/faizsaifulnizam/ai-analyst-workflow/blob/main/docs/failure_catalogue.md">failure catalogue</a>.</figcaption>
+</figure>
 
 <h2>Decision implications: proposed feasibility pilot</h2>
 <ul>
@@ -106,7 +107,7 @@ footer{border-top:1px solid var(--rule);margin-top:60px;padding-top:18px;color:v
 <ol class="method">
 <li><b>Golden set</b> — 32 hand-written questions in analyst phrasing across 8 question types, including 6 deliberate traps (a question whose obvious SQL is subtly wrong); canonical SQL with a deterministic <code>ORDER BY</code> where the result has multiple rows, plus a result fingerprint. <a href="https://github.com/faizsaifulnizam/ai-analyst-workflow/blob/main/eval/golden_set.yaml">eval/golden_set.yaml</a></li>
 <li><b>Fingerprint</b> — one canonical result formatter shared by the golden set and the comparison: every cell to 2 dp, rows joined in order, sha256 over the ordered result. Row count + hash, nothing else. <a href="https://github.com/faizsaifulnizam/ai-analyst-workflow/blob/main/src/fingerprint.py">src/fingerprint.py</a></li>
-<li><b>Generate</b> — one prompt template = question text + schema block, no rows; ≤2 attempts per question, attempt 2 sees attempt 1's SQL and an error class, never expected numbers. Re-runs land in <code>outputs/reruns/&lt;date&gt;/</code> and never overwrite the committed receipt. <a href="https://github.com/faizsaifulnizam/ai-analyst-workflow/blob/main/src/generate.py">src/generate.py</a></li>
+<li><b>Generate</b> — one prompt template = question text + schema block, no rows; ≤2 attempts per question, attempt 2 sees attempt 1's SQL and a fixed result-contract message, never expected numbers. Re-runs land in <code>outputs/reruns/&lt;date&gt;/</code> and never overwrite the committed receipt. <a href="https://github.com/faizsaifulnizam/ai-analyst-workflow/blob/main/src/generate.py">src/generate.py</a></li>
 <li><b>Guardrails</b> — every candidate executes under a trust boundary: parse-based single-SELECT check, table allowlist, no filesystem/catalog functions, read-only connection, 15 s watchdog, 10,000-row cap. <a href="https://github.com/faizsaifulnizam/ai-analyst-workflow/blob/main/src/guardrails.py">src/guardrails.py</a></li>
 <li><b>Validate + catalogue + audit</b> — golden fingerprints re-derived from the live database first (a moved input fails loudly), then every committed candidate replayed; every failure classified with a next-iteration fix; 15 verdicts (14 passes + 1 failure) re-derived by hand from the raw CSV. <a href="https://github.com/faizsaifulnizam/ai-analyst-workflow/blob/main/src/validate.py">src/validate.py</a> · <a href="https://github.com/faizsaifulnizam/ai-analyst-workflow/blob/main/docs/audit.md">audit</a></li>
 </ol>
@@ -116,7 +117,7 @@ footer{border-top:1px solid var(--rule);margin-top:60px;padding-top:18px;color:v
 uv venv .venv --python 3.12 &amp;&amp; source .venv/bin/activate
 uv pip install -r requirements.txt
 
-python src/download.py      # raw CSV → data/raw/ (gitignored)
+python src/restore_snapshot.py      # raw CSV → data/raw/ (gitignored)
 python src/build_db.py      # 241,920 rows → local DuckDB
 python src/generate.py      # needs GOOGLE_API_KEY; skips gracefully without it
 python src/validate.py      # replays the committed candidates
@@ -138,6 +139,6 @@ python tests/smoke_test.py</code></pre>
 <p>An independent, unofficial analysis by <a href="https://github.com/faizsaifulnizam">Muhammad Faiz Saifulnizam</a>. Code: MIT. LLM evaluation receipt dated 2026-10-04 — not a benchmark, not a model ranking.</p>
 </footer>
 
-</div>
+</main>
 </body>
 </html>

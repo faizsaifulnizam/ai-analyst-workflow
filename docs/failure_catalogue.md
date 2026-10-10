@@ -1,7 +1,7 @@
 # Failure catalogue — every failure in the as-of run, classified
 
 **Run:** 2026-10-04 (receipt: [`outputs/results.csv`](../outputs/results.csv), [`outputs/summary.json`](../outputs/summary.json); config in [model_note.md](model_note.md)).
-**Result:** 27/32 first-try, **0 of 5 retries rescued anything**, 5 failures. **All 5 failures are `value_mismatch`** — the row counts were right and the values were wrong. No `sql_error`, no `guardrail_reject`, no `timeout`: every candidate was a well-formed single SELECT that the guardrails let through. That is itself a finding: on this question set the failure mode is *semantics*, not syntax or safety.
+**Result:** 27/32 first-try, **0 of 5 retries rescued anything**, 5 failures. **All 5 failures are `value_mismatch`** — matching row counts, with two semantic errors, two contract slips and one deliberate ambiguity. No `sql_error`, no `guardrail_reject`, no `timeout`: every candidate was a well-formed single SELECT that the guardrails let through. That is itself a finding: on this question set the failures concern semantics and result contracts, not syntax or safety.
 
 Retries were offered to exactly the 5 failing questions (Q13, Q14, Q15, Q17, Q24). The retry feedback carries the error class and "did not match the verified answer" but never expected numbers — and on these five it changed nothing material (same fingerprint on both attempts for Q13/Q14/Q15/Q17; a differently-written but result-identical wrong answer on Q24).
 
@@ -25,8 +25,8 @@ The trap is real and live: `block` is block-number text only, and the same strin
 
 ### Q15 — window misuse: row frames over a gapped calendar *(trap caught)*
 **Question:** *Hougang 2-room: the 3-month rolling median of monthly median price per m², 2022–2024 — each month covers that month and the two calendar months before it.*
-**Both attempts:** `MEDIAN(...) OVER (ORDER BY month ROWS BETWEEN 2 PRECEDING AND CURRENT ROW)` → wrong values for every month after a gap. Verified answer uses `RANGE BETWEEN INTERVAL 2 MONTH PRECEDING AND CURRENT ROW`.
-Hougang 2-room trades in only 22 of the 36 months — a row frame silently averages over whatever rows exist, not calendar months. The question text even spells the calendar semantics ("the two calendar months before it"), and the retry kept the row frame verbatim.
+**Both attempts:** `MEDIAN(...) OVER (ORDER BY month ROWS BETWEEN 2 PRECEDING AND CURRENT ROW)` → six mismatching output months: 2022-04, 2022-09, 2023-01, 2023-03, 2023-05 and 2023-09. Verified answer uses `RANGE BETWEEN INTERVAL 2 MONTH PRECEDING AND CURRENT ROW`.
+Hougang 2-room trades in only 22 of the 36 months — a row frame takes a median over whichever rows exist, not calendar months. The question text even spells the calendar semantics ("the two calendar months before it"), and the retry kept the row frame verbatim.
 **Next-iteration fix:** put the frame choice in the prompt contract ("rolling windows over `month` are calendar months — use `RANGE ... INTERVAL n MONTH`"), and prefer questions that name the window semantics, since that is where this model actually loses.
 
 ### Q14 — contract slip: rounding order on a difference
@@ -55,4 +55,4 @@ Deliberately ambiguous wording, deliberately plausible wrong answers. The questi
 
 ## Aggregate mismatch counts (from the receipt)
 
-`value_mismatch: 5` — and nothing else. Row counts matched on all 32 first attempts: the model always got the *shape* of the answer right; when it was wrong it was wrong in the values, which is exactly the failure class that eyeballing SQL review misses and result fingerprints catch.
+`value_mismatch: 5` — and nothing else. Row counts matched on all 32 first attempts: matching row counts alone do not establish matching column shape or semantics, which is exactly the failure class that eyeballing SQL review misses and result fingerprints catch.
