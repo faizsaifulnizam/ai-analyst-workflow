@@ -1,5 +1,7 @@
 # Manual audit — do the verdicts survive independent recomputation?
 
+**Historical evidence limit:** the original `audit_recompute.py` is not available in the supplied repository or review bundle. The following is a historical reported receipt, not an authenticated recovered script or independently certified historical process. A newly run independent calculation is new evidence; it does not recover the old method or authorship. Exact source SHA-256: `9835dfe6cd92a46a1302fabf3a692bf893ee5b86ec95638d10dfce61dbfbdb9a` (241,920 rows).
+
 **Method.** Every number below was recomputed from the raw CSV
 (`data/raw/hdb-resale-prices-2017-onwards.csv`, 241,920 rows) with **stdlib `csv` + `Decimal` only** — no DuckDB, no `src/` code, no pipeline helpers. The audit script re-derives each answer from the raw rows (`audit_recompute.py`, kept out of the repo on purpose: the audit must not be another consumer of the pipeline it checks), then re-implements the documented fingerprint contract independently (numbers → fixed 2dp, cells joined with `0x1f`, rows with `0x1e`, sha256) and compares the resulting hash with `eval/golden_set.yaml`. A `MATCH` therefore covers both the golden SQL's answer **and** the serializer contract; the verdict column then checks the run's recorded outcome against that answer.
 

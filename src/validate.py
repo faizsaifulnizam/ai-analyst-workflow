@@ -50,7 +50,10 @@ def classify(res, want):
         return "timeout", res.get("note", "")
     if res["outcome"] == "sql_error":
         return "sql_error", res.get("note", "")
-    n, h = fingerprint(res["rows"])
+    try:
+        n, h = fingerprint(res["rows"], version=want.get("version", 1))
+    except (ValueError, TypeError) as exc:
+        return "result_contract_error", f"{type(exc).__name__}: {exc}"
     if n != want.get("rows"):
         return "wrong_row_count", f"rows {n} != {want.get('rows')}"
     if h != want.get("sha256"):
@@ -58,8 +61,8 @@ def classify(res, want):
     return "", ""   # exact fingerprint match = pass
 
 
-def run_attempt(sql, want):
-    res = execute_sql(sql)
+def run_attempt(sql, want, as_of=None):
+    res = execute_sql(sql, as_of=as_of)
     mm, note = classify(res, want)
     return {"ok": res["outcome"] == "ok" and mm == "", "mismatch": mm, "note": note}
 
@@ -68,6 +71,39 @@ def atomic_write(path, text):
     tmp = path.with_name(path.name + ".part")
     tmp.write_text(text, encoding="utf-8", newline="\n")
     os.replace(tmp, path)
+
+
+SOURCE_SHA = "9835dfe6cd92a46a1302fabf3a692bf893ee5b86ec95638d10dfce61dbfbdb9a"
+
+
+def frozen_source_valid():
+    """Shared raw/database provenance gate for historical evaluation callers."""
+    import hashlib
+    raw = ROOT / "data/raw/hdb-resale-prices-2017-onwards.csv"
+    locked = SOURCE_SHA
+    if not raw.exists() or hashlib.sha256(raw.read_bytes()).hexdigest() != locked:
+        print("SOURCE IDENTITY DRIFT: historical evaluation requires the frozen source bytes")
+        return False
+
+    import duckdb
+    from src.guardrails import DB
+    try:
+        con = duckdb.connect(str(DB), read_only=True)
+    except duckdb.Error:
+        print("DATABASE SOURCE IDENTITY DRIFT: missing or unreadable database")
+        return False
+    try:
+        try:
+            identity = con.sql("SELECT sha256 FROM source_receipt").fetchall()
+        except duckdb.Error:
+            identity = []
+    finally:
+        con.close()
+    if identity != [(locked,)]:
+        print("DATABASE SOURCE IDENTITY DRIFT: rebuild from the frozen source")
+        return False
+
+    return True
 
 
 def main():
@@ -85,6 +121,8 @@ def main():
     else:
         out_dir = ROOT / "outputs"
     golden = load_golden()
+    if not frozen_source_valid():
+        return 1
 
     # 1 — golden fingerprints must reproduce from the database (deterministic receipt)
     recomputed = golden_fingerprints(golden)
@@ -122,9 +160,15 @@ def main():
                           for q in golden["questions"]})
     for q in golden["questions"]:
         want = q.get("fingerprint") or {}
+        if meta.get("serializer_version") == 2:
+            reference = execute_sql(q["sql"], as_of=meta.get("run_date"))
+            if reference["outcome"] != "ok":
+                raise RuntimeError("reference execution failed")
+            n, h = fingerprint(reference["rows"], version=2)
+            want = {"rows": n, "sha256": h, "version": 2}
         atts = cand[q["id"]]["attempts"]
-        a1 = run_attempt(atts[0]["sql"], want)
-        a2 = run_attempt(atts[1]["sql"], want) if len(atts) > 1 else None
+        a1 = run_attempt(atts[0]["sql"], want, as_of=meta.get("run_date"))
+        a2 = run_attempt(atts[1]["sql"], want, as_of=meta.get("run_date")) if len(atts) > 1 else None
         if a1["ok"]:
             status, attempts_used = "pass_first_try", 1
         elif a2 and a2["ok"]:
@@ -173,15 +217,21 @@ def main():
         "by_trap": by_trap,
     }
 
+    if meta.get("serializer_version") == 2:
+        summary["receipt"]["serializer_version"] = 2
+        summary["receipt"]["as_of"] = meta.get("run_date")
+        if out_dir.resolve() == (ROOT / "outputs").resolve():
+            raise SystemExit("version 2 replay requires a separate output directory")
     out_dir.mkdir(parents=True, exist_ok=True)
     csv_path = out_dir / "results.csv"
-    tmp = csv_path.with_name(csv_path.name + ".part")
-    with tmp.open("w", newline="", encoding="utf-8") as f:
-        w = csv.DictWriter(f, fieldnames=RESULTS_COLS, lineterminator="\n")
-        w.writeheader()
-        w.writerows(rows)
-    os.replace(tmp, csv_path)
-    atomic_write(out_dir / "summary.json", json.dumps(summary, indent=2) + "\n")
+    import io
+    from src.publication import publish
+    buffer = io.StringIO(newline="")
+    w = csv.DictWriter(buffer, fieldnames=RESULTS_COLS, lineterminator="\n")
+    w.writeheader()
+    w.writerows(rows)
+    publish({csv_path: buffer.getvalue().encode("utf-8"),
+             out_dir / "summary.json": (json.dumps(summary, indent=2) + "\n").encode("utf-8")})
 
     t = summary["totals"]
     print(f"results:  {t['pass_first_try']}/{t['questions']} first-try, "

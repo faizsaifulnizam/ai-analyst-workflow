@@ -8,7 +8,7 @@
 
 [![CI](https://github.com/faizsaifulnizam/ai-analyst-workflow/actions/workflows/ci.yml/badge.svg)](https://github.com/faizsaifulnizam/ai-analyst-workflow/actions/workflows/ci.yml) [![license: MIT](https://img.shields.io/badge/license-MIT-2E7D6B.svg)](LICENSE) ![Python 3.12](https://img.shields.io/badge/Python-3.12-C0552B.svg) ![DuckDB](https://img.shields.io/badge/analytics-DuckDB-22607B.svg) [![data: data.gov.sg](https://img.shields.io/badge/data-data.gov.sg-14293D.svg)](https://data.gov.sg/datasets/d_8b84c4ee58e3cfc0ece0d773c8ca6abc/view) ![LLM eval: dated receipt](https://img.shields.io/badge/LLM%20eval-dated%20receipt-2E7D6B.svg)
 
-> **Answer:** On 2026-10-04 a free-tier LLM wrote SQL for 32 hand-written analyst questions and **27 passed on the first try**. **All 5 failures returned the right row counts but wrong values**, retries rescued none, and 3 of 6 deliberate traps caught the model. Comparing results with known gold references caught those five errors, but **that does not prove the workflow can check new questions without gold answers**. I would propose a supervised feasibility pilot for recurring single-table tasks with independent reference checks, not adoption or production use.
+> **Answer:** On 2026-10-04 a free-tier LLM wrote SQL for 32 hand-written analyst questions and **27 passed on the first try**. **Five results disagreed with pinned references: two semantic errors, two contract slips and one deliberate ambiguity**, retries rescued none, and 3 of 6 deliberate traps caught the model. Comparing results with known gold references caught those five errors, but **that does not prove the workflow can check new questions without gold answers**. I would propose a supervised feasibility pilot for recurring single-table tasks with independent reference checks, not adoption or production use.
 
 **Status:** built 2026-10-04. The numbers below are the as-of receipt of **one dated run** (three free-tier Gemini model ids, pinned and explained in [docs/model_note.md](docs/model_note.md) — the free tier caps each model at 20 requests/day). Part of the Six-on-SG series — six Singapore-data analyses plus this AI workflow (seven repos).
 
@@ -19,7 +19,7 @@
 - **27/32 first try · 0 after one retry · 5 fail.** Every question got ≤2 attempts; the retry saw the failed SQL plus an error class, never the expected numbers. All 5 failures are `value_mismatch` — no `sql_error`, no `guardrail_reject`, no `timeout` ([results.csv](outputs/results.csv)).
 - **Traps: 3 of 6 caught the model.** Q13 (grouped on non-unique `block` → 196 instead of 295 distinct blocks), Q15 (`ROWS 2 PRECEDING` over a series with 14 missing months), Q24 (deliberately ambiguous "prices gone up in the last year"). The other three traps — Q04's near-miss `flat_model`/`flat_type` column, Q12's block grain, Q26's lease-text months — were answered correctly first try ([failure catalogue](docs/failure_catalogue.md)).
 - **Where it breaks:** window questions 2/5, ambiguous 0/1, grouping 7/8; filters, aggregations, ratios, distinct and date questions all clean (18/18).
-- **Everything deterministic re-derives:** 32/32 golden fingerprints reproduce from the DuckDB build (241,920 rows, 9/9 checks); re-running `src/validate.py` over the committed candidates is byte-identical; 15 verdicts re-derived from the raw CSV with stdlib `Decimal` — no DuckDB, no repo code — 0 discrepancies ([audit](docs/audit.md)).
+- **Everything deterministic re-derives:** 32/32 golden fingerprints reproduce from the DuckDB build (241,920 rows, 9/9 checks); re-running `src/validate.py` over the committed candidates is byte-identical; 15 historically reported verdicts (original script unavailable) re-derived from the raw CSV with stdlib `Decimal` — no DuckDB, no repo code — 0 discrepancies ([audit](docs/audit.md)).
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="reports/figures/f2_pass_rate-dark.png">
@@ -33,7 +33,7 @@
 
 | | |
 |---|---|
-| <a href="reports/figures/f3_failures.png"><picture><source media="(prefers-color-scheme: dark)" srcset="reports/figures/f3_failures-dark.png"><img src="reports/figures/f3_failures.png" alt="Failure-type breakdown: 5 value_mismatch, 0 wrong_row_count, 0 sql_error, 0 guardrail_reject, 0 timeout; verdict mix 27 first try, 0 after retry, 5 fail"></picture></a> | Every failure in this run is a value-level mismatch: the model returned the right number of rows and the wrong values. Nothing failed on syntax or on the safety guardrails. The taxonomy in the left panel is the contract even where a class is empty — a future run that starts producing `guardrail_reject`s means the prompt or schema changed. |
+| <a href="reports/figures/f3_failures.png"><picture><source media="(prefers-color-scheme: dark)" srcset="reports/figures/f3_failures-dark.png"><img src="reports/figures/f3_failures.png" alt="Failure-type breakdown: 5 value_mismatch, 0 wrong_row_count, 0 sql_error, 0 guardrail_reject, 0 timeout; verdict mix 27 first try, 0 after retry, 5 fail"></picture></a> | Every strict failure is a reference disagreement with matching row counts: two semantic errors, two contract slips and one deliberate ambiguity. Nothing failed on syntax or on the safety guardrails. The taxonomy in the left panel is the contract even where a class is empty — a future run that starts producing `guardrail_reject`s means the prompt or schema changed. |
 
 All figures are generated by [code](src/figures.py), light + dark, and mirrored to `docs/img/`. [Decision memo](docs/decision_memo.md).
 
@@ -50,7 +50,7 @@ All figures are generated by [code](src/figures.py), light + dark, and mirrored 
 
 Almost every entry-level analytics spec now asks for AI fluency. The habit they cannot put in the ad is knowing when not to trust the output. This repo does both in one artefact: the LLM does real work over real data, and the pipeline shows exactly where its output can and cannot be trusted. The locked question: **can an LLM write correct SQL for a real analyst question on a real dataset — and how would I know when to trust it?**
 
-The answer this build supports: *it writes plausible SQL at least as often as it writes correct SQL, and plausibility is not evidence.* 27 clean first tries looked the same as the 5 confident wrong answers — the only thing that separated them was executing both against a hand-written reference and comparing **results**, not SQL text.
+The answer this build supports: *it writes plausible SQL at least as often as it writes correct SQL, and plausibility is not evidence.* 27 clean first tries looked the same as the 5 strict reference disagreements — the only thing that separated them was executing both against a hand-written reference and comparing **results**, not SQL text.
 
 ## The data
 
@@ -62,7 +62,7 @@ The answer this build supports: *it writes plausible SQL at least as often as it
 
 1. **Golden set** ([eval/golden_set.yaml](eval/golden_set.yaml)) — 32 hand-written questions in analyst phrasing across 8 question types, including **6 deliberate traps** (a question whose obvious SQL is subtly wrong). Each question carries canonical SQL with a deterministic `ORDER BY` where the result has multiple rows, a one-line "why it is in the set", and a result fingerprint. Versioned.
 2. **Fingerprint** ([src/fingerprint.py](src/fingerprint.py)) — one canonical result formatter (the "serializer") shared by the golden set and the comparison: every cell formatted to 2 dp (so `2017` the integer and `2017` the text are visibly different, `42` and `42.0` are not), rows joined in order, sha256 over the ordered result. Row count + hash, nothing else. Order is part of the contract.
-3. **Generate** ([src/generate.py](src/generate.py)) — one prompt template ([prompts/sql_prompt.md](prompts/sql_prompt.md)) = question text + schema block, no rows. ≤2 attempts per question; attempt 2 sees attempt 1's SQL and an error class, never expected numbers. Resumable per question; runs land in `outputs/reruns/<date>/` and never overwrite the committed receipt.
+3. **Generate** ([src/generate.py](src/generate.py)) — one prompt template ([prompts/sql_prompt.md](prompts/sql_prompt.md)) = question text + schema block, no rows. ≤2 attempts per question; attempt 2 sees attempt 1's SQL and a fixed result-contract message, never expected numbers. Resumable per question; runs land in `outputs/reruns/<date>/` and never overwrite the committed receipt.
 4. **Guardrails** ([src/guardrails.py](src/guardrails.py)) — every candidate is executed under a trust boundary: parse-based single-SELECT check (sqlglot — a `startswith('select')` check would accept `SELECT 1; DROP TABLE resale`), table allowlist, no filesystem/catalog functions, read-only DuckDB connection, wall-clock watchdog (`con.interrupt()` after 15 s), 10,000-row cap. Runnable self-check: `python src/guardrails.py`.
 5. **Validate** ([src/validate.py](src/validate.py)) — first re-derives every golden fingerprint from the live database (a moved input fails loudly instead of being silently re-pinned), then replays every committed candidate under the guardrails and compares fingerprints. Verdicts: `pass_first_try | pass_after_retry | fail` with mismatch types `sql_error | guardrail_reject | timeout | wrong_row_count | value_mismatch`.
 6. **Catalogue + audit** — every failure classified with a concrete example and a next-iteration fix ([failure catalogue](docs/failure_catalogue.md)); 15 verdicts re-computed by hand from the raw CSV with stdlib `Decimal`, deliberately mixing passes and failures ([audit](docs/audit.md)).
@@ -83,9 +83,11 @@ The answer this build supports: *it writes plausible SQL at least as often as it
 
 - **Golden fingerprints: 32/32 reproduce** from the database build; a changed input makes `src/validate.py` exit 1 rather than re-pin.
 - **Determinism:** re-validating the committed candidates twice produced byte-identical `results.csv` (`da76ab9a…`) and `summary.json` (`8ba883ef…`), matching the committed files. Figures render twice in the same environment and the two PNGs are sha256-compared before promotion ([src/figures.py](src/figures.py)).
-- **Independent audit:** 15 verdicts re-derived from the raw CSV with stdlib `csv` + `Decimal` (no DuckDB, no `src/` imports) — 14 passes confirmed and 1 failure (Q13) confirmed as a candidate-SQL fault, with Q15's failure-side check covered in the [failure catalogue](docs/failure_catalogue.md), **0 discrepancies**. Both trap contrasts reproduce (Q04: 688 vs 35; Q13: 295 vs 196) ([audit](docs/audit.md)).
+- **Independent audit:** 15 historically reported verdicts (original script unavailable) re-derived from the raw CSV with stdlib `csv` + `Decimal` (no DuckDB, no `src/` imports) — 14 passes confirmed and 1 failure (Q13) confirmed as a candidate-SQL fault, with Q15's failure-side check covered in the [failure catalogue](docs/failure_catalogue.md), **0 discrepancies**. Both trap contrasts reproduce (Q04: 688 vs 35; Q13: 295 vs 196) ([audit](docs/audit.md)).
 - **Guardrails self-check passes** (`python src/guardrails.py`): 8 escape attempts rejected, benign SELECT accepted. This run gave them nothing to reject — 0 `guardrail_reject`, 0 `sql_error`, 0 `timeout` — which is a statement about this question set, not a claim that the guardrails are optional.
-- **CI** runs a stdlib-only smoke test over the committed artifacts ([tests/smoke_test.py](tests/smoke_test.py)): schema subsets, verdict/summary agreement, per-run numeric anchors, figure presence and size floors in both themes, and a potency check that fails the suite when an implausible pass count is substituted at the loading boundary.
+- **CI** keeps a separate stdlib-only smoke test over the committed artifacts ([tests/smoke_test.py](tests/smoke_test.py)): schema subsets, verdict/summary agreement, per-run numeric anchors, figure presence and size floors in both themes, and a potency check that fails the suite when an implausible pass count is substituted at the loading boundary.
+
+The dependency-backed **frozen offline contracts** CI lane installs the documented `requirements.txt` direct pins on Python 3.12 and runs `python tests/offline_ci.py`. It restores the bundled snapshot (no source refresh), rebuilds the database, validates historical candidates, verifies all golden fingerprints, runs the complete nonempty test suite with zero skips, replays 32 typed references and 37 attempts, checks the original 27/0/5 score and historical receipt bytes, and renders both themes with all site mirrors. It never calls a live model. Direct pins are not a transitive lock; same-environment repeat PNG checks do not promise cross-platform pixel identity. Run the same command locally after the setup above.
 
 ### What this cannot say
 
@@ -103,6 +105,13 @@ The answer this build supports: *it writes plausible SQL at least as often as it
 
 ## Reproduce
 
+Historical replay uses the licensed frozen source archive (2.9 MB gzip), not the moving endpoint. Source identity is locked to `9835dfe6cd92a46a1302fabf3a692bf893ee5b86ec95638d10dfce61dbfbdb9a`. Current-date SQL is evaluated as of the candidate receipt date. Live refresh remains `python src/download.py --force` and must be independently reviewed before adopting a new golden version.
+
+The original version-1 golden set and candidate/result/summary receipts remain unchanged. Version 2 uses typed JSON framing, full timestamps, and Decimal-based two-decimal numeric equivalence; `42` and `42.0` agree, text/NULL, delimiters and large integers cannot masquerade as other cells. Write a separate new receipt with `python src/replay_typed.py --out outputs/reruns/typed-v2/replay.json`; this replays all 32 references and all saved attempts without silently changing the historical score.
+
+Attempt 1 is flushed and fsynced before retry; resume uses its saved SQL and requires matching provider/model/golden-version identity. This does not promise exactly-once remote processing. Multi-file publication rolls back ordinary replacement exceptions under a single writer, not power loss or concurrent writers.
+
+
 ### Linux/macOS (Bash)
 
 ```bash
@@ -111,7 +120,7 @@ uv venv .venv --python 3.12
 source .venv/bin/activate
 uv pip install -r requirements.txt
 
-python src/download.py
+python src/restore_snapshot.py
 python src/build_db.py
 python src/generate.py
 python src/validate.py
@@ -130,7 +139,7 @@ $env:PYTHONUTF8 = "1"
 uv venv .venv --python 3.12
 uv pip install --python .venv\Scripts\python.exe -r requirements.txt
 
-.venv\Scripts\python.exe src/download.py
+.venv\Scripts\python.exe src/restore_snapshot.py
 .venv\Scripts\python.exe src/build_db.py
 .venv\Scripts\python.exe src/generate.py
 .venv\Scripts\python.exe src/validate.py
@@ -144,7 +153,7 @@ uv pip install --python .venv\Scripts\python.exe -r requirements.txt
 
 **Spot-check:** `outputs/results.csv` must show Q01 `pass_first_try` (the Tampines 2023 count is **1,634**), Q05 `pass_first_try` (2023 4-room median **S$550,000**), and Q13 `fail` / `value_mismatch` — the trap that caught the model. If those three rows read differently, you are not looking at the committed receipt.
 
-**About re-running generation:** `src/generate.py` needs `GOOGLE_API_KEY` and skips gracefully without it; with it, a re-run writes `outputs/reruns/<date>/` and **will differ** from the committed receipt — that is expected. Compare the two `summary.json` files; never adopt silently. Everything else in the list above is deterministic and re-derives byte-identically. `src/validate.py` exits 1 on golden-fingerprint drift by design — if `src/download.py` pulls a newer dataset, re-audit before re-pinning anything.
+**About re-running generation:** `src/generate.py` needs `GOOGLE_API_KEY` and skips gracefully without it; with it, a re-run writes `outputs/reruns/<date>/` and **will differ** from the committed receipt — that is expected. Compare the two `summary.json` files; never adopt silently. Everything else in the list above is deterministic and re-derives byte-identically. `src/validate.py` exits 1 on golden-fingerprint drift by design — if `src/download.py --force` pulls a newer dataset, re-audit before re-pinning anything.
 
 ## Out of scope
 

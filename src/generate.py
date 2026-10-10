@@ -30,9 +30,8 @@ What is sent to the model: the question text + the schema block from
 prompts/sql_prompt.md. No rows, no key material in prompts, no files.
 
 Retry protocol (spec 07 §4.8): at most 2 attempts per question. The second
-attempt sees the first attempt's SQL plus feedback (error class and engine
-message for execution problems; a bare "did not match" for wrong answers —
-never the expected numbers).
+attempt sees the first attempt's SQL plus a fixed result-contract message,
+never engine diagnostics, rows or expected numbers.
 """
 import argparse
 import json
@@ -133,9 +132,11 @@ def extract_sql(text):
     return t.strip()
 
 
-def ask(provider, api_key, model, question, feedback=None, prior_sql=None):
+def ask(provider, api_key, model, question, feedback=None, prior_sql=None, response_evidence=None):
     prompt = PROMPT_TEMPLATE.replace("{question}", question)
     if feedback:
+        # Diagnostics can contain database values. Never interpolate them into a prompt.
+        feedback = "previous attempt did not satisfy the result contract"
         prompt += ("\n\nYour previous attempt was:\n" + prior_sql +
                    "\n\nIt did not produce the expected result (" + feedback + "). "
                    "Reread the contract (column order, ordering, rounding) and the schema, "
@@ -147,7 +148,10 @@ def ask(provider, api_key, model, question, feedback=None, prior_sql=None):
         resp = http_json(PROVIDERS["groq"]["base"] + "/chat/completions", body,
                          headers={"Authorization": f"Bearer {api_key}",
                                   "Content-Type": "application/json"})
-        return extract_sql(resp["choices"][0]["message"]["content"])
+        text = resp["choices"][0]["message"]["content"]
+        if response_evidence is not None:
+            response_evidence["response_text"] = text
+        return extract_sql(text)
     body = {"contents": [{"parts": [{"text": prompt}]}],
             "generationConfig": {"temperature": TEMPERATURE,
                                  "maxOutputTokens": PROVIDERS["gemini"]["max_tokens"],
@@ -156,7 +160,10 @@ def ask(provider, api_key, model, question, feedback=None, prior_sql=None):
                      headers={"x-goog-api-key": api_key, "Content-Type": "application/json"})
     parts = resp["candidates"][0]["content"]["parts"]
     time.sleep(PACE_S)   # pace free-tier calls; the burst/TPM limit trips without it
-    return extract_sql("".join(p.get("text", "") for p in parts))
+    text = "".join(p.get("text", "") for p in parts)
+    if response_evidence is not None:
+        response_evidence["response_text"] = text
+    return extract_sql(text)
 
 
 def main():
@@ -185,8 +192,12 @@ def main():
     print(f"provider: {args.provider}   model: {model}   (listed models: {len(listed)})")
     print(f"questions: {len(golden['questions'])}   out: {out_path}")
 
+    import hashlib
+    identity = hashlib.sha256(json.dumps(golden, sort_keys=True).encode() + PROMPT_TEMPLATE.encode()).hexdigest()
     meta = {
         "meta": {
+            "contract_sha256": identity,
+            "serializer_version": 2,
             "provider": args.provider,
             "run_date": datetime.now(SGT).date().isoformat(),
             "run_at": datetime.now(SGT).isoformat(timespec="seconds"),
@@ -199,16 +210,44 @@ def main():
             "listed_models": listed,
         }
     }
+    if out_path.exists():
+        first = json.loads(out_path.read_text(encoding="utf-8").splitlines()[0]).get("meta", {})
+        keys = ("provider", "model", "temperature", "max_tokens", "golden_set_version", "contract_sha256", "serializer_version")
+        if any(first.get(k) != meta["meta"].get(k) for k in keys):
+            print("resume identity mismatch — use a new output directory")
+            return 2
+        meta["meta"]["run_date"] = first["run_date"]
     if not out_path.exists():
         with out_path.open("w", encoding="utf-8", newline="\n") as f:
             f.write(json.dumps(meta) + "\n")
 
-    want = {q["id"]: (q.get("fingerprint") or {}) for q in golden["questions"]}
+    want = {}
+    for q in golden["questions"]:
+        reference = execute_sql(q["sql"], as_of=meta["meta"]["run_date"])
+        if reference["outcome"] != "ok":
+            raise RuntimeError("golden reference execution failed")
+        n, h = fingerprint(reference["rows"], version=2)
+        want[q["id"]] = {"rows": n, "sha256": h}
+
+    def candidate_fingerprint(res):
+        if res["outcome"] != "ok":
+            return None
+        try:
+            return fingerprint(res["rows"], version=2)
+        except (ValueError, TypeError) as exc:
+            # Formatting is a local contract failure, not a transport failure.
+            # Keep the complete diagnostic locally; ask() only sends fixed feedback.
+            res["outcome"] = "result_contract_error"
+            res["note"] = f"{type(exc).__name__}: {exc}"
+            return None
 
     def passes(qid, res):
         if res["outcome"] != "ok":
             return False
-        n, h = fingerprint(res["rows"])
+        fp = candidate_fingerprint(res)
+        if fp is None:
+            return False
+        n, h = fp
         w = want[qid]
         return w.get("rows") == n and w.get("sha256") == h
 
@@ -221,25 +260,41 @@ def main():
                     rec = json.loads(line)
                     if "meta" not in rec:
                         records.append(rec)
-    done = {r["id"] for r in records}
+    latest = {r["id"]: r for r in records}
+    # A persisted fingerprint is sufficient to recognize an already passing attempt.
+    done = {qid for qid, r in latest.items()
+            if len(r["attempts"]) == 2 or (r["attempts"][0]["outcome"] == "ok"
+            and r["attempts"][0]["fingerprint"] == [want[qid].get("rows"), want[qid].get("sha256")])}
     if done:
         print(f"resuming: {len(done)} questions already generated")
 
     for i, q in enumerate(golden["questions"], 1):
         if q["id"] in done:
             continue
-        attempts = []
-        try:
-            sql = ask(args.provider, api_key, model, q["question"])
-        except Exception as exc:  # noqa: BLE001 — progress is saved; resume wins over crash
-            print(f"provider error on {q['id']}: {exc}")
-            print(f"progress saved in {out_path} — re-run the same command to resume.")
-            return 2
-        res = execute_sql(sql)
-        ok = passes(q["id"], res)
-        fp = fingerprint(res["rows"]) if res["outcome"] == "ok" else None
-        attempts.append({"n": 1, "sql": sql, "outcome": res["outcome"],
-                         "note": res.get("note", ""), "fingerprint": fp})
+        attempts = latest.get(q["id"], {}).get("attempts", [])
+        if attempts:
+            sql = attempts[0]["sql"]
+            res = execute_sql(sql, as_of=meta["meta"]["run_date"])
+            ok = passes(q["id"], res)
+        else:
+            try:
+                evidence = {}
+                sql = ask(args.provider, api_key, model, q["question"], response_evidence=evidence)
+            except Exception as exc:
+                print(f"provider error on {q['id']}: {exc}")
+                return 2
+            res = execute_sql(sql, as_of=meta["meta"]["run_date"])
+            ok = passes(q["id"], res)
+            fp = candidate_fingerprint(res)
+            attempts.append({"n": 1, "sql": sql, "outcome": res["outcome"],
+                             "note": res.get("note", ""), "fingerprint": fp})
+            if res["outcome"] == "result_contract_error":
+                attempts[-1].update(evidence)
+            with out_path.open("a", encoding="utf-8", newline="\n") as f:
+                f.write(json.dumps({"id": q["id"], "question": q["question"],
+                                    "model": model, "attempts": attempts}) + "\n")
+                f.flush()
+                os.fsync(f.fileno())
         if not ok:
             if res["outcome"] == "ok":
                 fb = ("the query executed but its result does not match the verified answer "
@@ -247,15 +302,18 @@ def main():
             else:
                 fb = f"{res['outcome']}: {res.get('note', '')}"
             try:
-                sql2 = ask(args.provider, api_key, model, q["question"], feedback=fb, prior_sql=sql)
+                evidence2 = {}
+                sql2 = ask(args.provider, api_key, model, q["question"], feedback=fb, prior_sql=sql, response_evidence=evidence2)
             except Exception as exc:  # noqa: BLE001 — attempt 1 is already saved
                 print(f"provider error on {q['id']} attempt 2: {exc}")
                 print(f"progress saved in {out_path} — re-run the same command to resume.")
                 return 2
-            res2 = execute_sql(sql2)
-            fp2 = fingerprint(res2["rows"]) if res2["outcome"] == "ok" else None
+            res2 = execute_sql(sql2, as_of=meta["meta"]["run_date"])
+            fp2 = candidate_fingerprint(res2)
             attempts.append({"n": 2, "sql": sql2, "outcome": res2["outcome"],
                              "note": res2.get("note", ""), "fingerprint": fp2})
+            if res2["outcome"] == "result_contract_error":
+                attempts[-1].update(evidence2)
         records.append({"id": q["id"], "question": q["question"], "model": model, "attempts": attempts})
         with out_path.open("a", encoding="utf-8", newline="\n") as f:   # incremental: a crash keeps progress
             f.write(json.dumps(records[-1]) + "\n")

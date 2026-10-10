@@ -68,6 +68,11 @@ def load_receipt():
     summary = json.loads(SUMMARY.read_text(encoding="utf-8"))
     with RESULTS.open(newline="", encoding="utf-8") as f:
         rows = list(csv.DictReader(f))
+    counts = {status: sum(row["status"] == status for row in rows)
+              for status in ("pass_first_try", "pass_after_retry", "fail")}
+    if len(rows) != summary["totals"]["questions"] or any(
+            summary["totals"][key] != value for key, value in counts.items()):
+        raise ValueError("results and summary are not the same receipt generation")
     pull = ""
     try:
         ts = json.loads(MANIFEST.read_text(encoding="utf-8")).get("retrieved_at", "")
@@ -178,7 +183,7 @@ def fig_to_png_bytes(fig):
     return buf.getvalue()
 
 
-def render(build, name):
+def render(build, name, pending=None):
     """Two same-env renders must be byte-identical; promote only after the check."""
     a = fig_to_png_bytes(build())
     b = fig_to_png_bytes(build())
@@ -188,13 +193,12 @@ def render(build, name):
     print(f"   [{'PASS' if ok else 'FAIL'}] determinism {name}: {ha[:16]} == {hb[:16]}")
     assert ok, f"{name} renders differ in the same environment"
     target = FIGDIR / name.replace(".png", T["suffix"] + ".png")
-    tmp = target.with_name(target.name + ".part")
-    tmp.write_bytes(a)
-    os.replace(tmp, target)
+    from src.publication import publish
     mirror = IMGDIR / target.name
-    mtmp = mirror.with_name(mirror.name + ".part")
-    mtmp.write_bytes(a)
-    os.replace(mtmp, mirror)
+    if pending is None:
+        publish({target: a, mirror: a})
+    else:
+        pending.update({target: a, mirror: a})
     print(f"   wrote {target.name} ({len(a)} bytes) + docs/img/{mirror.name}")
 
 
@@ -343,12 +347,15 @@ def main():
     summary, rows, PULL_DATE = load_receipt()
     FIGDIR.mkdir(parents=True, exist_ok=True)
     IMGDIR.mkdir(parents=True, exist_ok=True)
+    pending = {}
     for palette in (LIGHT, DARK):
         use_palette(palette)
         use_series_style(dark=(palette is DARK))
         print(f"-- rendering {'dark' if palette['suffix'] else 'light'} set --")
-        render(lambda: build_f2(summary), "f2_pass_rate.png")
-        render(lambda: build_f3(summary), "f3_failures.png")
+        render(lambda: build_f2(summary), "f2_pass_rate.png", pending)
+        render(lambda: build_f3(summary), "f3_failures.png", pending)
+    from src.publication import publish
+    publish(pending)
     print("figures done — 2 charts x light/dark, mirrored to docs/img/ in the same run")
 
 

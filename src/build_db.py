@@ -35,6 +35,11 @@ def q(con, sql):
 
 
 def main():
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+    from src.download import validate
+    _, problems = validate(RAW.read_bytes())
+    if problems:
+        raise SystemExit("raw source validation failed: " + "; ".join(problems))
     os.chdir(ROOT)  # sql/00 references data/raw relatively
     OUT.parent.mkdir(parents=True, exist_ok=True)
     tmp = OUT.with_name(OUT.name + ".tmp")
@@ -68,6 +73,9 @@ def main():
             if v:
                 failed = True
 
+        import hashlib
+        con.execute("CREATE OR REPLACE TABLE source_receipt (sha256 VARCHAR)")
+        con.execute("INSERT INTO source_receipt VALUES (?)", [hashlib.sha256(RAW.read_bytes()).hexdigest()])
         if failed:
             print("checks failed — database NOT written (existing file left untouched)")
             sys.exit(1)
